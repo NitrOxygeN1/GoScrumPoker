@@ -37,6 +37,10 @@ h1 {
   letter-spacing: -0.02em;
 }
 
+h1.join-link-page-title {
+  margin: 0 0 0.35rem;
+}
+
 .sub {
   color: var(--muted);
   font-size: 0.875rem;
@@ -53,7 +57,24 @@ h1 {
 
 .join-link-panel {
   position: relative;
-  padding-top: 2.75rem;
+  padding-top: 2.1rem;
+}
+
+.join-link-lead {
+  color: var(--muted);
+  font-size: 0.875rem;
+  margin: 0 0 0.5rem;
+  line-height: 1.4;
+}
+
+.link-join-status {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin: 0 0 0.5rem;
+}
+
+.join-link-error-panel {
+  padding-top: 2.1rem;
 }
 
 .join-link-close {

@@ -104,8 +104,19 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [selectedCard, setSelectedCard] = useState(null);
   const [copyToast, setCopyToast] = useState("");
+  const [linkJoining, setLinkJoining] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return (
+      parsePathForLobby().fromRoomLink && readDisplayName().trim() !== ""
+    );
+  });
   const copyToastTimerRef = useRef(0);
   const prevRevealedRef = useRef(false);
+  const canAutoJoinFromLinkRef = useRef(undefined);
+  if (canAutoJoinFromLinkRef.current === undefined) {
+    canAutoJoinFromLinkRef.current = readDisplayName().trim() !== "";
+  }
+  const autoLinkJoinTried = useRef(false);
 
   const showCopyToast = useCallback((message) => {
     window.clearTimeout(copyToastTimerRef.current);
@@ -200,6 +211,47 @@ export default function App() {
     [roomState.users, userId]
   );
 
+  const joinByRoomId = useCallback(async (id, { fromAuto = false } = {}) => {
+    if (!id) return;
+    setError("");
+    if (fromAuto) {
+      setLinkJoining(true);
+    } else {
+      setBusy(true);
+    }
+    try {
+      const res = await fetch(`/rooms/${encodeURIComponent(id)}`);
+      if (res.status === 404) {
+        setError("Room not found.");
+        return;
+      }
+      if (!res.ok) throw new Error("Could not load room");
+      setActiveRoomId(id);
+      prevRevealedRef.current = false;
+      setPhase("room");
+      setRoomState(initialRoomState());
+      setSelectedCard(null);
+    } catch (e) {
+      setError(e.message || "Join failed");
+    } finally {
+      if (fromAuto) {
+        setLinkJoining(false);
+      } else {
+        setBusy(false);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (phase !== "lobby" || !joinFromRoomLink) return;
+    const id = roomIdInput.trim();
+    if (!id) return;
+    if (!canAutoJoinFromLinkRef.current) return;
+    if (autoLinkJoinTried.current) return;
+    autoLinkJoinTried.current = true;
+    joinByRoomId(id, { fromAuto: true });
+  }, [joinFromRoomLink, roomIdInput, phase, joinByRoomId]);
+
   async function createRoom() {
     setError("");
     if (!displayName.trim()) {
@@ -223,7 +275,7 @@ export default function App() {
     }
   }
 
-  async function joinRoom() {
+  function joinRoom() {
     setError("");
     const id = roomIdInput.trim();
     if (!displayName.trim()) {
@@ -234,24 +286,7 @@ export default function App() {
       setError("Enter a room ID.");
       return;
     }
-    setBusy(true);
-    try {
-      const res = await fetch(`/rooms/${encodeURIComponent(id)}`);
-      if (res.status === 404) {
-        setError("Room not found.");
-        return;
-      }
-      if (!res.ok) throw new Error("Could not load room");
-      setActiveRoomId(id);
-      prevRevealedRef.current = false;
-      setPhase("room");
-      setRoomState(initialRoomState());
-      setSelectedCard(null);
-    } catch (e) {
-      setError(e.message || "Join failed");
-    } finally {
-      setBusy(false);
-    }
+    joinByRoomId(id, { fromAuto: false });
   }
 
   function leaveRoom() {
@@ -261,6 +296,7 @@ export default function App() {
     setRoomState(initialRoomState());
     setSelectedCard(null);
     setError("");
+    setLinkJoining(false);
     setJoinFromRoomLink(false);
     setRoomIdInput("");
     window.history.replaceState(
@@ -272,6 +308,7 @@ export default function App() {
 
   function goToMainLobby() {
     setError("");
+    setLinkJoining(false);
     setJoinFromRoomLink(false);
     setRoomIdInput("");
     window.history.replaceState(
@@ -318,7 +355,17 @@ export default function App() {
           {copyToast}
         </div>
       ) : null}
-      <h1>Scrum Poker</h1>
+      {!(phase === "lobby" && joinFromRoomLink && linkJoining) && (
+        <h1
+          className={
+            phase === "lobby" && joinFromRoomLink && !linkJoining
+              ? "join-link-page-title"
+              : undefined
+          }
+        >
+          Scrum Poker
+        </h1>
+      )}
       {!(phase === "lobby" && joinFromRoomLink) && (
         <p className="sub">
           Planning poker — same origin as the API in production, or Vite on :5173 with a
@@ -326,7 +373,13 @@ export default function App() {
         </p>
       )}
 
-      {phase === "lobby" && joinFromRoomLink && (
+      {phase === "lobby" && joinFromRoomLink && linkJoining && (
+        <p className="link-join-status" role="status" aria-live="polite">
+          Joining room…
+        </p>
+      )}
+
+      {phase === "lobby" && joinFromRoomLink && !linkJoining && !displayName.trim() && (
         <div className="panel join-link-panel">
           <button
             type="button"
@@ -337,9 +390,7 @@ export default function App() {
           >
             <IconClose />
           </button>
-          <p className="sub" style={{ marginTop: 0, marginBottom: "1rem" }}>
-            You’re joining a room from a link. Enter your name to continue.
-          </p>
+          <p className="join-link-lead">Enter your name to join this room.</p>
           <label htmlFor="name">Your name</label>
           <input
             id="name"
@@ -348,13 +399,18 @@ export default function App() {
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
             autoComplete="nickname"
-            autoFocus={!displayName.trim()}
+            autoFocus
           />
           <div
             className="row join-link-actions"
-            style={{ marginTop: "1rem" }}
+            style={{ marginTop: "0.75rem" }}
           >
-            <button type="button" className="primary" disabled={busy} onClick={joinRoom}>
+            <button
+              type="button"
+              className="primary"
+              disabled={busy}
+              onClick={joinRoom}
+            >
               Join room
             </button>
             <button type="button" className="ghost" onClick={goToMainLobby}>
@@ -362,6 +418,28 @@ export default function App() {
             </button>
           </div>
           {error && <p className="error">{error}</p>}
+        </div>
+      )}
+
+      {phase === "lobby" && joinFromRoomLink && !linkJoining && displayName.trim() && error && (
+        <div className="panel join-link-panel join-link-error-panel">
+          <button
+            type="button"
+            className="icon-btn join-link-close"
+            onClick={goToMainLobby}
+            title="Return to home page"
+            aria-label="Return to home page"
+          >
+            <IconClose />
+          </button>
+          <p className="error" style={{ margin: 0 }}>
+            {error}
+          </p>
+          <div className="row join-link-actions" style={{ marginTop: "0.75rem" }}>
+            <button type="button" className="ghost" onClick={goToMainLobby}>
+              Return to home page
+            </button>
+          </div>
         </div>
       )}
 

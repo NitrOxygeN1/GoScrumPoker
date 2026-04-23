@@ -57,6 +57,12 @@ func NewRouter(dep Dependencies) http.Handler {
 		dep.Auth.Register(r)
 	}
 
+	// Uptime/monitoring: HEAD for origin root (Uptime Robot, etc.)
+	r.Head("/", func(w http.ResponseWriter, r *http.Request) {
+		_ = r
+		w.WriteHeader(http.StatusOK)
+	})
+
 	r.Get("/health", health(dep))
 	r.Post("/rooms", createRoom(dep))
 	r.Get("/rooms/{id}", getRoom(dep))
