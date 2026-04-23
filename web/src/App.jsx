@@ -317,7 +317,7 @@ export default function App() {
     );
   }
 
-  function goToMainLobby() {
+  const goToMainLobby = useCallback(() => {
     setError("");
     setLinkJoining(false);
     setJoinFromRoomLink(false);
@@ -328,7 +328,7 @@ export default function App() {
       "",
       "/" + window.location.search + window.location.hash
     );
-  }
+  }, []);
 
   const roomShareUrl = useMemo(() => {
     if (typeof window === "undefined" || !activeRoomId) return "";
@@ -359,6 +359,31 @@ export default function App() {
     setSelectedCard(value);
     vote(value);
   }
+
+  const showLinkNameForm =
+    phase === "lobby" &&
+    joinFromRoomLink &&
+    !linkJoining &&
+    !canAutoJoinFromLinkRef.current &&
+    !(displayName.trim() && error);
+  const showLinkErrorPanel =
+    phase === "lobby" &&
+    joinFromRoomLink &&
+    !linkJoining &&
+    !!displayName.trim() &&
+    !!error;
+
+  useEffect(() => {
+    if (!showLinkNameForm && !showLinkErrorPanel) return;
+    const onKey = (e) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        goToMainLobby();
+      }
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [showLinkNameForm, showLinkErrorPanel, goToMainLobby]);
 
   return (
     <>
@@ -391,51 +416,51 @@ export default function App() {
         </p>
       )}
 
-      {phase === "lobby" &&
-        joinFromRoomLink &&
-        !linkJoining &&
-        !canAutoJoinFromLinkRef.current &&
-        !(displayName.trim() && error) && (
+      {showLinkNameForm && (
         <div className="panel join-link-panel">
-          <div className="join-link-header">
-            <p className="join-link-lead">Enter your name to join this room.</p>
+          <div className="join-link-lead-section">
             <button
               type="button"
-              className="icon-btn join-link-close"
+              className="icon-btn join-link-close join-link-close--corner"
               onClick={goToMainLobby}
-              title="Return to home page"
+              title="Return to home page (Esc)"
               aria-label="Return to home page"
             >
               <IconClose />
             </button>
+            <p className="join-link-lead">Enter your name to join this room.</p>
           </div>
-          <label htmlFor="name">Your name</label>
-          <input
-            id="name"
-            type="text"
-            placeholder="Jane"
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-            autoComplete="nickname"
-            autoFocus
-          />
-          <div
-            className="row join-link-actions"
-            style={{ marginTop: "0.75rem" }}
+          <form
+            className="join-link-name-form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              joinRoom();
+            }}
           >
-            <button
-              type="button"
-              className="primary"
-              disabled={busy}
-              onClick={joinRoom}
+            <label htmlFor="name-join-link">Your name</label>
+            <input
+              id="name-join-link"
+              name="displayName"
+              type="text"
+              placeholder="Jane"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              autoComplete="nickname"
+              autoFocus
+            />
+            <div
+              className="row join-link-actions"
+              style={{ marginTop: "0.75rem" }}
             >
-              Join room
-            </button>
-            <button type="button" className="ghost" onClick={goToMainLobby}>
-              Return to home page
-            </button>
-          </div>
-          {error && <p className="error">{error}</p>}
+              <button type="submit" className="primary" disabled={busy}>
+                Join room
+              </button>
+              <button type="button" className="ghost" onClick={goToMainLobby}>
+                Return to home page
+              </button>
+            </div>
+            {error && <p className="error">{error}</p>}
+          </form>
         </div>
       )}
 
@@ -449,7 +474,7 @@ export default function App() {
               type="button"
               className="icon-btn join-link-close"
               onClick={goToMainLobby}
-              title="Return to home page"
+              title="Return to home page (Esc)"
               aria-label="Return to home page"
             >
               <IconClose />
