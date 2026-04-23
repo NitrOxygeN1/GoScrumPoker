@@ -1,0 +1,78 @@
+package domain
+
+import "sort"
+
+// User is a participant in a planning poker room.
+type User struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+// Room is the aggregate root for a Scrum Poker session.
+// Mutations must go through the store so locking stays consistent.
+type Room struct {
+	ID       string
+	Users    map[string]User
+	Votes    map[string]string // userID -> face value (e.g. "5", "?")
+	Revealed bool
+}
+
+// NewRoom constructs an empty room with initialized maps.
+func NewRoom(id string) *Room {
+	return &Room{
+		ID:       id,
+		Users:    make(map[string]User),
+		Votes:    make(map[string]string),
+		Revealed: false,
+	}
+}
+
+// RoomState is a JSON-safe snapshot for HTTP and WebSocket broadcasts.
+type RoomState struct {
+	ID       string            `json:"id"`
+	Revealed bool              `json:"revealed"`
+	Users    []UserPresence    `json:"users"`
+	Votes    map[string]string `json:"votes,omitempty"`
+}
+
+// UserPresence augments a user with voting progress without leaking values when hidden.
+type UserPresence struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Voted bool   `json:"voted"`
+}
+
+// BuildRoomState returns a snapshot suitable for clients.
+// Votes are included only after the facilitator reveals them.
+func BuildRoomState(r *Room) RoomState {
+	st := RoomState{
+		ID:       r.ID,
+		Revealed: r.Revealed,
+		Users:    make([]UserPresence, 0, len(r.Users)),
+	}
+
+	ids := make([]string, 0, len(r.Users))
+	for id := range r.Users {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+
+	for _, uid := range ids {
+		u := r.Users[uid]
+		_, has := r.Votes[uid]
+		st.Users = append(st.Users, UserPresence{
+			ID:    u.ID,
+			Name:  u.Name,
+			Voted: has,
+		})
+	}
+
+	if r.Revealed {
+		st.Votes = make(map[string]string, len(r.Votes))
+		for uid, v := range r.Votes {
+			st.Votes[uid] = v
+		}
+	}
+
+	return st
+}

@@ -1,0 +1,18 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+# After deploy: create/link a PostgreSQL so DATABASE_URL is set automatically.
+# The web service does not need a custom start command; the image entrypoint is ./server.
+
+version: "1"
+services:
+  - type: web
+    name: goscrumppoker
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    # Match typical Render / public-URL flow
+    plan: free
+    envVars:
+      - key: ENV
+        value: prod
+      - key: RUN_MIGRATIONS_ON_STARTUP
+        value: "true"

@@ -1,0 +1,3 @@
+DROP TABLE IF EXISTS votes;
+DROP TABLE IF EXISTS room_participants;
+DROP TABLE IF EXISTS rooms;
