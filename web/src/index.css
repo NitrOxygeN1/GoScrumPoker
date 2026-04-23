@@ -57,13 +57,44 @@ h1.join-link-page-title {
 
 .join-link-panel {
   position: relative;
-  padding-top: 2.1rem;
+}
+
+.join-link-header {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.join-link-header .join-link-lead {
+  margin: 0;
+  padding-right: 0.15rem;
+  line-height: 1.3;
+  flex: 1;
+  min-width: 0;
+}
+
+.join-link-header .join-link-close,
+.join-link-header--error .join-link-close {
+  position: static;
+  flex-shrink: 0;
+}
+
+.join-link-header--error {
+  align-items: flex-start;
+}
+
+.join-link-header--error .error {
+  flex: 1;
+  min-width: 0;
+  padding-top: 0.12rem;
 }
 
 .join-link-lead {
   color: var(--muted);
   font-size: 0.875rem;
-  margin: 0 0 0.5rem;
   line-height: 1.4;
 }
 
@@ -73,15 +104,7 @@ h1.join-link-page-title {
   margin: 0 0 0.5rem;
 }
 
-.join-link-error-panel {
-  padding-top: 2.1rem;
-}
-
 .join-link-close {
-  position: absolute;
-  top: 0.6rem;
-  right: 0.6rem;
-  z-index: 1;
   min-width: 2.25rem;
   min-height: 2.25rem;
   padding: 0.35rem;

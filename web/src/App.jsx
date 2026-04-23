@@ -116,6 +116,8 @@ export default function App() {
   if (canAutoJoinFromLinkRef.current === undefined) {
     canAutoJoinFromLinkRef.current = readDisplayName().trim() !== "";
   }
+  const displayNameForJoinRef = useRef(displayName);
+  displayNameForJoinRef.current = displayName;
   const autoLinkJoinTried = useRef(false);
 
   const showCopyToast = useCallback((message) => {
@@ -161,6 +163,11 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    const isLinkManualName =
+      joinFromRoomLink && phase === "lobby" && !linkJoining && !canAutoJoinFromLinkRef.current;
+    if (isLinkManualName) {
+      return;
+    }
     const t = setTimeout(() => {
       if (displayName.trim()) {
         saveDisplayName(displayName.trim());
@@ -169,7 +176,7 @@ export default function App() {
       }
     }, 400);
     return () => clearTimeout(t);
-  }, [displayName]);
+  }, [displayName, joinFromRoomLink, phase, linkJoining]);
 
   useEffect(() => {
     if (phase !== "room" || !activeRoomId) return;
@@ -226,6 +233,10 @@ export default function App() {
         return;
       }
       if (!res.ok) throw new Error("Could not load room");
+      const n = (displayNameForJoinRef.current || "").trim();
+      if (n) {
+        saveDisplayName(n);
+      }
       setActiveRoomId(id);
       prevRevealedRef.current = false;
       setPhase("room");
@@ -311,6 +322,7 @@ export default function App() {
     setLinkJoining(false);
     setJoinFromRoomLink(false);
     setRoomIdInput("");
+    setDisplayName(readDisplayName());
     window.history.replaceState(
       null,
       "",
@@ -379,18 +391,24 @@ export default function App() {
         </p>
       )}
 
-      {phase === "lobby" && joinFromRoomLink && !linkJoining && !displayName.trim() && (
+      {phase === "lobby" &&
+        joinFromRoomLink &&
+        !linkJoining &&
+        !canAutoJoinFromLinkRef.current &&
+        !(displayName.trim() && error) && (
         <div className="panel join-link-panel">
-          <button
-            type="button"
-            className="icon-btn join-link-close"
-            onClick={goToMainLobby}
-            title="Return to home page"
-            aria-label="Return to home page"
-          >
-            <IconClose />
-          </button>
-          <p className="join-link-lead">Enter your name to join this room.</p>
+          <div className="join-link-header">
+            <p className="join-link-lead">Enter your name to join this room.</p>
+            <button
+              type="button"
+              className="icon-btn join-link-close"
+              onClick={goToMainLobby}
+              title="Return to home page"
+              aria-label="Return to home page"
+            >
+              <IconClose />
+            </button>
+          </div>
           <label htmlFor="name">Your name</label>
           <input
             id="name"
@@ -423,18 +441,20 @@ export default function App() {
 
       {phase === "lobby" && joinFromRoomLink && !linkJoining && displayName.trim() && error && (
         <div className="panel join-link-panel join-link-error-panel">
-          <button
-            type="button"
-            className="icon-btn join-link-close"
-            onClick={goToMainLobby}
-            title="Return to home page"
-            aria-label="Return to home page"
-          >
-            <IconClose />
-          </button>
-          <p className="error" style={{ margin: 0 }}>
-            {error}
-          </p>
+          <div className="join-link-header join-link-header--error">
+            <p className="error" style={{ margin: 0 }}>
+              {error}
+            </p>
+            <button
+              type="button"
+              className="icon-btn join-link-close"
+              onClick={goToMainLobby}
+              title="Return to home page"
+              aria-label="Return to home page"
+            >
+              <IconClose />
+            </button>
+          </div>
           <div className="row join-link-actions" style={{ marginTop: "0.75rem" }}>
             <button type="button" className="ghost" onClick={goToMainLobby}>
               Return to home page
