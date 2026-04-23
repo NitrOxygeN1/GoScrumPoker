@@ -1,7 +1,10 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRoomSocket } from "./hooks/useRoomSocket.js";
 
 const CARDS = ["1", "2", "3", "5", "8", "13", "?", "coffee"];
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function formatVote(v) {
   if (v == null || v === "") return "—";
@@ -10,6 +13,47 @@ function formatVote(v) {
 
 function initialRoomState() {
   return { id: "", revealed: false, users: [], votes: {} };
+}
+
+function IconClipboard() {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h5a2 2 0 0 1 2 2v1" />
+    </svg>
+  );
+}
+
+function IconShareLink() {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <circle cx="18" cy="5" r="3" />
+      <circle cx="6" cy="12" r="3" />
+      <circle cx="18" cy="19" r="3" />
+      <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+      <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+    </svg>
+  );
 }
 
 export default function App() {
@@ -21,7 +65,48 @@ export default function App() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [selectedCard, setSelectedCard] = useState(null);
+  const [copyToast, setCopyToast] = useState("");
+  const copyToastTimerRef = useRef(0);
   const prevRevealedRef = useRef(false);
+
+  const showCopyToast = useCallback((message) => {
+    window.clearTimeout(copyToastTimerRef.current);
+    setCopyToast(message);
+    copyToastTimerRef.current = window.setTimeout(() => setCopyToast(""), 2000);
+  }, []);
+
+  useEffect(() => {
+    const raw = window.location.pathname;
+    const path = (raw || "/").replace(/\/+/g, "/");
+    if (raw !== path) {
+      window.history.replaceState(
+        null,
+        "",
+        path + window.location.search + window.location.hash
+      );
+    }
+    const part = path.replace(/^\/+/, "").split("/").filter(Boolean);
+    if (part.length === 1 && UUID_RE.test(part[0])) {
+      setRoomIdInput((prev) => (prev ? prev : part[0]));
+    }
+  }, []);
+
+  useEffect(() => {
+    if (phase !== "room" || !activeRoomId) return;
+    const want = `/${activeRoomId}`;
+    const current = (window.location.pathname || "/").replace(/\/+/g, "/");
+    if (current !== want) {
+      window.history.replaceState(
+        null,
+        "",
+        want + window.location.search + window.location.hash
+      );
+    }
+  }, [phase, activeRoomId]);
+
+  useEffect(() => {
+    return () => window.clearTimeout(copyToastTimerRef.current);
+  }, []);
 
   const handleServerMessage = useCallback((msg) => {
     if (msg.type === "state" && msg.payload) {
@@ -115,6 +200,36 @@ export default function App() {
     setRoomState(initialRoomState());
     setSelectedCard(null);
     setError("");
+    window.history.replaceState(
+      null,
+      "",
+      "/" + window.location.search + window.location.hash
+    );
+  }
+
+  const roomShareUrl = useMemo(() => {
+    if (typeof window === "undefined" || !activeRoomId) return "";
+    return `${window.location.origin}/${activeRoomId}`;
+  }, [activeRoomId]);
+
+  async function copyRoomId() {
+    if (!activeRoomId) return;
+    try {
+      await navigator.clipboard.writeText(activeRoomId);
+      showCopyToast("Room ID copied");
+    } catch {
+      showCopyToast("Copy failed");
+    }
+  }
+
+  async function copyRoomUrl() {
+    if (!roomShareUrl) return;
+    try {
+      await navigator.clipboard.writeText(roomShareUrl);
+      showCopyToast("Link copied");
+    } catch {
+      showCopyToast("Copy failed");
+    }
   }
 
   function pickCard(value) {
@@ -124,6 +239,11 @@ export default function App() {
 
   return (
     <>
+      {copyToast ? (
+        <div className="copy-toast" role="status">
+          {copyToast}
+        </div>
+      ) : null}
       <h1>Scrum Poker</h1>
       <p className="sub">Planning poker — same origin as the API in production, or Vite on :5173 with a proxied API in dev.</p>
 
@@ -172,8 +292,37 @@ export default function App() {
           </button>
 
           <div className="panel">
-            <div className="muted">Room</div>
-            <div style={{ wordBreak: "break-all", fontSize: "0.9rem" }}>{activeRoomId}</div>
+            <div className="room-id-row">
+              <div>
+                <div className="muted">Room</div>
+                <div
+                  className="room-id-text"
+                  style={{ wordBreak: "break-all", fontSize: "0.9rem" }}
+                >
+                  {activeRoomId}
+                </div>
+              </div>
+              <div className="room-id-actions">
+                <button
+                  type="button"
+                  className="icon-btn"
+                  onClick={copyRoomId}
+                  title="Copy room ID"
+                  aria-label="Copy room ID"
+                >
+                  <IconClipboard />
+                </button>
+                <button
+                  type="button"
+                  className="icon-btn"
+                  onClick={copyRoomUrl}
+                  title="Copy room link"
+                  aria-label="Copy room link"
+                >
+                  <IconShareLink />
+                </button>
+              </div>
+            </div>
             {error && <p className="error">{error}</p>}
           </div>
 

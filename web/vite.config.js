@@ -3,9 +3,43 @@ import react from "@vitejs/plugin-react";
 
 const backend = "http://127.0.0.1:8080";
 
+/** Serves `index.html` for client routes like `/<room-uuid>` in dev and `vite preview`. */
+function installSpaFallback() {
+  return (server) => {
+    return () => {
+      server.middlewares.use((req, res, next) => {
+        if (req.method !== "GET" && req.method !== "HEAD") return next();
+        const u = new URL(req.url, "http://v.local");
+        const p = u.pathname;
+        if (p.startsWith("/@") || p.startsWith("/node_modules/") || p.startsWith("/.vite/")) {
+          return next();
+        }
+        if (p.startsWith("/src/") || p.startsWith("/@fs/")) return next();
+        if (p.startsWith("/assets/")) return next();
+        if (p === "/") return next();
+        if (p.startsWith("/rooms") || p.startsWith("/ws")) return next();
+        if (/\.[a-zA-Z0-9][\w+.-]*$/.test(p.split("/").pop() || "")) {
+          return next();
+        }
+        u.pathname = "/";
+        req.url = u.pathname + u.search;
+        next();
+      });
+    };
+  };
+}
+
+function spaIndexFallback() {
+  return {
+    name: "spa-index-fallback",
+    configureServer: installSpaFallback(),
+    configurePreviewServer: installSpaFallback(),
+  };
+}
+
 export default defineConfig({
   base: "/",
-  plugins: [react()],
+  plugins: [react(), spaIndexFallback()],
   server: {
     port: 5173,
     proxy: {

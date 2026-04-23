@@ -27,8 +27,11 @@ export function useRoomSocket({ roomId, displayName, enabled, onServerMessage })
   useEffect(() => {
     if (!enabled || !roomId || !displayName?.trim()) return;
 
-    const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const ws = new WebSocket(`${proto}//${window.location.host}/ws/${roomId}`);
+    // Single "://" in the URL; avoid `wss:` + `//` template drift that is easy to misread as a bug
+    const scheme = window.location.protocol === "https:" ? "wss" : "ws";
+    const ws = new WebSocket(
+      `${scheme}://${window.location.host}/ws/${encodeURIComponent(roomId)}`
+    );
     wsRef.current = ws;
 
     ws.onopen = () => {
