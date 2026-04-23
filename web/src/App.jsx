@@ -6,6 +6,19 @@ const CARDS = ["1", "2", "3", "5", "8", "13", "?", "coffee"];
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+/** When `/room-uuid` is open, the lobby is join-only (no create / manual id). */
+function parsePathForLobby() {
+  if (typeof window === "undefined") {
+    return { fromRoomLink: false, roomId: "" };
+  }
+  const path = (window.location.pathname || "/").replace(/\/+/g, "/");
+  const part = path.replace(/^\/+/, "").split("/").filter(Boolean);
+  if (part.length === 1 && UUID_RE.test(part[0])) {
+    return { fromRoomLink: true, roomId: part[0] };
+  }
+  return { fromRoomLink: false, roomId: "" };
+}
+
 function formatVote(v) {
   if (v == null || v === "") return "—";
   return v === "coffee" ? "☕" : v;
@@ -59,7 +72,12 @@ function IconShareLink() {
 export default function App() {
   const [phase, setPhase] = useState("lobby");
   const [displayName, setDisplayName] = useState("");
-  const [roomIdInput, setRoomIdInput] = useState("");
+  const [roomIdInput, setRoomIdInput] = useState(
+    () => parsePathForLobby().roomId
+  );
+  const [joinFromRoomLink, setJoinFromRoomLink] = useState(
+    () => parsePathForLobby().fromRoomLink
+  );
   const [activeRoomId, setActiveRoomId] = useState("");
   const [roomState, setRoomState] = useState(initialRoomState);
   const [error, setError] = useState("");
@@ -88,6 +106,9 @@ export default function App() {
     const part = path.replace(/^\/+/, "").split("/").filter(Boolean);
     if (part.length === 1 && UUID_RE.test(part[0])) {
       setRoomIdInput((prev) => (prev ? prev : part[0]));
+      setJoinFromRoomLink(true);
+    } else {
+      setJoinFromRoomLink(false);
     }
   }, []);
 
@@ -200,6 +221,19 @@ export default function App() {
     setRoomState(initialRoomState());
     setSelectedCard(null);
     setError("");
+    setJoinFromRoomLink(false);
+    setRoomIdInput("");
+    window.history.replaceState(
+      null,
+      "",
+      "/" + window.location.search + window.location.hash
+    );
+  }
+
+  function goToMainLobby() {
+    setError("");
+    setJoinFromRoomLink(false);
+    setRoomIdInput("");
     window.history.replaceState(
       null,
       "",
@@ -245,9 +279,43 @@ export default function App() {
         </div>
       ) : null}
       <h1>Scrum Poker</h1>
-      <p className="sub">Planning poker — same origin as the API in production, or Vite on :5173 with a proxied API in dev.</p>
+      {!(phase === "lobby" && joinFromRoomLink) && (
+        <p className="sub">
+          Planning poker — same origin as the API in production, or Vite on :5173 with a
+          proxied API in dev.
+        </p>
+      )}
 
-      {phase === "lobby" && (
+      {phase === "lobby" && joinFromRoomLink && (
+        <div className="panel">
+          <p className="sub" style={{ marginTop: 0, marginBottom: "1rem" }}>
+            You’re joining a room from a link. Enter your name to continue.
+          </p>
+          <label htmlFor="name">Your name</label>
+          <input
+            id="name"
+            type="text"
+            placeholder="Jane"
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            autoComplete="nickname"
+            autoFocus
+          />
+          <div className="row" style={{ marginTop: "1rem" }}>
+            <button type="button" className="primary" disabled={busy} onClick={joinRoom}>
+              Join room
+            </button>
+          </div>
+          <p className="muted" style={{ marginTop: "1rem" }}>
+            <button type="button" className="back ghost" onClick={goToMainLobby}>
+              Create a new room or enter a different ID
+            </button>
+          </p>
+          {error && <p className="error">{error}</p>}
+        </div>
+      )}
+
+      {phase === "lobby" && !joinFromRoomLink && (
         <div className="panel">
           <label htmlFor="name">Your name</label>
           <input
