@@ -31,6 +31,8 @@ type Dependencies struct {
 	DBPing func(context.Context) error
 	// HealthExposeErrorDetail includes raw DB error strings in /health JSON. Disable on production/Render.
 	HealthExposeErrorDetail bool
+	// WebRoot, if set, is the on-disk Vite `dist` folder (index + assets) for the SPA. Empty = API + WS only.
+	WebRoot string
 }
 
 var upgrader = websocket.Upgrader{
@@ -58,6 +60,18 @@ func NewRouter(dep Dependencies) http.Handler {
 	r.Post("/rooms", createRoom(dep))
 	r.Get("/rooms/{id}", getRoom(dep))
 	r.Get("/ws/{roomId}", serveWS(dep))
+
+	if dep.WebRoot != "" {
+		staticH := staticFileHandler(dep.WebRoot)
+		r.NotFound(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodGet && r.Method != http.MethodHead {
+				w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+				http.Error(w, "not found", http.StatusNotFound)
+				return
+			}
+			staticH.ServeHTTP(w, r)
+		})
+	}
 
 	return r
 }

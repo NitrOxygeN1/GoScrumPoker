@@ -15,6 +15,8 @@ import (
 //   - REDIS_URL — optional redis:// or rediss:// for room storage.
 //   - ENV — "dev" or "prod". If unset and RENDER is set (Render.com), defaults to prod.
 //   - RENDER — set by render.com; used to pick prod defaults and logging.
+//   - WEB_ROOT — if set, directory with Vite `dist` output (index.html + assets/) to serve the SPA
+//     at / and for HTML5 fallback. Docker sets this to /app/web. Leave empty to serve API only.
 //
 // Additional (optional) env vars are still read in Load for auth, migrations, and Redis TTL.
 type Config struct {
@@ -22,6 +24,7 @@ type Config struct {
 	DatabaseURL  string
 	RedisURL     string
 	Env          string
+	WebRoot      string
 
 	ShutdownTimeout        time.Duration
 	MigrationsPath         string
@@ -114,6 +117,7 @@ func Load() Config {
 		DatabaseURL:            strings.TrimSpace(os.Getenv("DATABASE_URL")),
 		RedisURL:               strings.TrimSpace(os.Getenv("REDIS_URL")),
 		Env:                    env,
+		WebRoot:                strings.TrimSpace(os.Getenv("WEB_ROOT")),
 		ShutdownTimeout:        timeout,
 		MigrationsPath:         migrationsPath,
 		RunMigrationsOnStartup: truthy(os.Getenv("RUN_MIGRATIONS_ON_STARTUP")),

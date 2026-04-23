@@ -1,6 +1,7 @@
 # Render Blueprint — https://render.com/docs/blueprint-spec
 # After deploy: create/link a PostgreSQL so DATABASE_URL is set automatically.
-# The web service does not need a custom start command; the image entrypoint is ./server.
+# The image serves the Vite app from /app/web (WEB_ROOT) and the API on the same PORT.
+# The web service does not need a custom start command; the image entrypoint is /server.
 
 version: "1"
 services:

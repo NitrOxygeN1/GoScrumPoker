@@ -125,7 +125,7 @@ export default function App() {
   return (
     <>
       <h1>Scrum Poker</h1>
-      <p className="sub">Planning poker with your Go backend — run API on port 8080, then npm run dev here.</p>
+      <p className="sub">Planning poker — same origin as the API in production, or Vite on :5173 with a proxied API in dev.</p>
 
       {phase === "lobby" && (
         <div className="panel">

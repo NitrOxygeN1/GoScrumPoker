@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -127,6 +128,23 @@ func main() {
 		logger.Warn().Msg("Google OAuth disabled: set GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET, OAUTH_REDIRECT_URL, JWT_SECRET")
 	}
 
+	webRoot := cfg.WebRoot
+	if webRoot != "" {
+		st, err := os.Stat(webRoot)
+		if err != nil {
+			logger.Warn().Err(err).Str("web_root", webRoot).Msg("WEB_ROOT not accessible; only API routes (no static UI) will be served")
+			webRoot = ""
+		} else if !st.IsDir() {
+			logger.Warn().Str("web_root", webRoot).Msg("WEB_ROOT is not a directory; only API routes (no static UI) will be served")
+			webRoot = ""
+		} else if _, err := os.Stat(filepath.Join(webRoot, "index.html")); err != nil {
+			logger.Warn().Str("web_root", webRoot).Msg("WEB_ROOT has no index.html; static UI disabled")
+			webRoot = ""
+		} else {
+			logger.Info().Str("web_root", webRoot).Msg("serving Vite app from WebRoot")
+		}
+	}
+
 	srv := &http.Server{
 		Addr: cfg.ListenAddr(),
 		Handler: httpserver.NewRouter(httpserver.Dependencies{
@@ -138,6 +156,7 @@ func main() {
 			DBBackend:              dbBackend,
 			DBPing:                 dbPing,
 			HealthExposeErrorDetail: cfg.ExposeHealthErrorDetail(),
+			WebRoot:                 webRoot,
 		}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
