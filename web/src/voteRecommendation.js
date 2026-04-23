@@ -32,7 +32,7 @@ export function computeVoteRecommendation(votes, revealed, opt = {}) {
     byVal.set(v, (byVal.get(v) || 0) + 1);
   }
   if (byVal.size > 3) {
-    return { line: "Revote: more than 3 different values" };
+    return { line: "Recommend: discuss, then re-vote" };
   }
 
   const T = all.length;
@@ -41,7 +41,7 @@ export function computeVoteRecommendation(votes, revealed, opt = {}) {
   const leaders = entries.filter(([, c]) => c === maxC).map(([v]) => v);
 
   if (leaders.length >= 3) {
-    return { line: "Revote: 3+ options tied for the top" };
+    return { line: "Recommend: discuss, then re-vote" };
   }
   if (leaders.length === 2) {
     const [a, b] = [...leaders].sort(compareLeaderValues);

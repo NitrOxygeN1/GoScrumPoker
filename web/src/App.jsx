@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRoomSocket } from "./hooks/useRoomSocket.js";
 import { readDisplayName, saveDisplayName } from "./displayNameStorage.js";
+import { readLastRoomId, saveLastRoomId } from "./lastRoomStorage.js";
 import { computeVoteRecommendation } from "./voteRecommendation.js";
 
 const CARDS = ["1", "2", "3", "5", "8", "13", "?", "coffee"];
@@ -253,31 +254,6 @@ export default function App() {
     return () => window.clearTimeout(toastTimerRef.current);
   }, []);
 
-  useEffect(() => {
-    const isLinkManualName =
-      joinFromRoomLink && phase === "lobby" && !linkJoining && !canAutoJoinFromLinkRef.current;
-    if (isLinkManualName) {
-      return;
-    }
-    const t = setTimeout(() => {
-      if (displayName.trim()) {
-        saveDisplayName(displayName.trim());
-      } else {
-        saveDisplayName("");
-      }
-    }, 400);
-    return () => clearTimeout(t);
-  }, [displayName, joinFromRoomLink, phase, linkJoining]);
-
-  useEffect(() => {
-    if (phase !== "room" || !activeRoomId) return;
-    const n = displayName.trim();
-    if (n) {
-      // Refresh 7-day window on every visit to a room
-      saveDisplayName(n);
-    }
-  }, [phase, activeRoomId, displayName]);
-
   const handleServerMessage = useCallback((msg) => {
     if (msg.type === "state" && msg.payload) {
       const revealed = !!msg.payload.revealed;
@@ -372,6 +348,7 @@ export default function App() {
       if (n) {
         saveDisplayName(n);
       }
+      saveLastRoomId(id);
       setActiveRoomId(id);
       prevRevealedRef.current = false;
       setPhase("room");
@@ -409,6 +386,8 @@ export default function App() {
       const res = await fetch("/rooms", { method: "POST" });
       if (!res.ok) throw new Error("Could not create room");
       const data = await res.json();
+      saveDisplayName(displayName.trim());
+      saveLastRoomId(data.id);
       setActiveRoomId(data.id);
       prevRevealedRef.current = false;
       setPhase("room");
@@ -419,6 +398,20 @@ export default function App() {
     } finally {
       setBusy(false);
     }
+  }
+
+  function rejoinLastRoom() {
+    const id = readLastRoomId();
+    if (!id) {
+      showToast("No last room on this device.", "error");
+      return;
+    }
+    if (!displayName.trim()) {
+      showToast("Enter your name first.", "error");
+      return;
+    }
+    setRoomIdInput(id);
+    joinByRoomId(id, { fromAuto: false });
   }
 
   function joinRoom() {
@@ -464,6 +457,22 @@ export default function App() {
       "/" + window.location.search + window.location.hash
     );
   }, []);
+
+  function goHome() {
+    if (phase === "room") {
+      leaveRoom();
+      return;
+    }
+    if (joinFromRoomLink) {
+      goToMainLobby();
+      return;
+    }
+    window.history.replaceState(
+      null,
+      "",
+      "/" + window.location.search + window.location.hash
+    );
+  }
 
   const roomShareUrl = useMemo(() => {
     if (typeof window === "undefined" || !activeRoomId) return "";
@@ -534,23 +543,22 @@ export default function App() {
         </div>
       ) : null}
       {!(phase === "lobby" && joinFromRoomLink && linkJoining) && (
-        <h1
-          className={
+        <button
+          type="button"
+          className={[
+            "app-title",
             phase === "lobby" && joinFromRoomLink && !linkJoining
-              ? "join-link-page-title"
-              : undefined
-          }
+              ? "app-title--join-link"
+              : null,
+          ]
+            .filter(Boolean)
+            .join(" ")}
+          onClick={goHome}
+          title="Home"
         >
           Scrum Poker
-        </h1>
+        </button>
       )}
-      {!(phase === "lobby" && joinFromRoomLink) && (
-        <p className="sub">
-          Planning poker — same origin as the API in production, or Vite on :5173 with a
-          proxied API in dev.
-        </p>
-      )}
-
       {phase === "lobby" && joinFromRoomLink && linkJoining && (
         <p className="link-join-status" role="status" aria-live="polite">
           Joining room…
@@ -647,6 +655,15 @@ export default function App() {
             <button type="button" className="primary" disabled={busy} onClick={createRoom}>
               Create room
             </button>
+            <button
+              type="button"
+              className="ghost"
+              disabled={busy || !readLastRoomId()}
+              onClick={rejoinLastRoom}
+              title="Open the room you used last (this device)"
+            >
+              Last room
+            </button>
           </div>
 
           <p className="muted" style={{ marginTop: "1.25rem" }}>
@@ -677,13 +694,16 @@ export default function App() {
           <div className="panel">
             <div className="room-id-row">
               <div>
-                <div className="muted">Room</div>
-                <div
+                <div className="muted">Room ID</div>
+                <button
+                  type="button"
                   className="room-id-text"
-                  style={{ wordBreak: "break-all", fontSize: "0.9rem" }}
+                  onClick={copyRoomId}
+                  title="Copy room ID"
+                  aria-label="Copy room ID to clipboard"
                 >
                   {activeRoomId}
-                </div>
+                </button>
               </div>
               <div className="room-id-actions">
                 <button

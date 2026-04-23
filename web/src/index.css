@@ -37,8 +37,30 @@ h1 {
   letter-spacing: -0.02em;
 }
 
-h1.join-link-page-title {
+button.app-title {
+  display: block;
+  font: inherit;
+  font-size: 1.35rem;
+  font-weight: 600;
+  margin: 0 0 0.25rem;
+  letter-spacing: -0.02em;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  line-height: inherit;
+}
+
+button.app-title--join-link {
   margin: 0 0 0.35rem;
+}
+
+button.app-title:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 .sub {
@@ -324,6 +346,32 @@ button:disabled {
   margin-bottom: 1rem;
   padding: 0.35rem 0.65rem;
   font-size: 0.85rem;
+}
+
+button.room-id-text {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  font: inherit;
+  font-size: 0.9rem;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  text-align: left;
+  word-break: break-all;
+  cursor: pointer;
+}
+
+button.room-id-text:hover {
+  color: var(--accent);
+}
+
+button.room-id-text:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 .room-id-row {
