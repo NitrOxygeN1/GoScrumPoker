@@ -87,31 +87,6 @@ h1.join-link-page-title {
   padding: 0;
 }
 
-.join-link-header {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
-}
-
-.join-link-header .join-link-close,
-.join-link-header--error .join-link-close {
-  position: static;
-  flex-shrink: 0;
-}
-
-.join-link-header--error {
-  align-items: flex-start;
-}
-
-.join-link-header--error .error {
-  flex: 1;
-  min-width: 0;
-  padding-top: 0.12rem;
-}
-
 .join-link-lead {
   color: var(--muted);
   font-size: 0.875rem;
@@ -308,12 +283,6 @@ button:disabled {
   background: var(--accent-dim);
 }
 
-.error {
-  color: var(--danger);
-  font-size: 0.875rem;
-  margin-top: 0.5rem;
-}
-
 .muted {
   color: var(--muted);
   font-size: 0.85rem;
@@ -406,7 +375,7 @@ button.icon-btn:disabled {
   cursor: not-allowed;
 }
 
-.copy-toast {
+.app-toast {
   position: fixed;
   z-index: 2000;
   left: 50%;
@@ -420,6 +389,25 @@ button.icon-btn:disabled {
   border-radius: 8px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
   animation: toast-in 0.2s ease-out;
+  max-width: min(100vw - 2rem, 22rem);
+  text-align: center;
+}
+
+.app-toast--error {
+  color: var(--danger);
+  border-color: rgba(255, 107, 107, 0.45);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 @keyframes toast-in {

@@ -1,6 +1,18 @@
 /** Numeric card values in sort order, for "nearest to mean" (excludes ? and coffee). */
 const DEFAULT_NUMS = [1, 2, 3, 5, 8, 13];
 
+/** Deck order for tie display when values are not both plain numbers. */
+const DECK_TIE_ORDER = ["1", "2", "3", "5", "8", "13", "?", "coffee"];
+
+function compareLeaderValues(a, b) {
+  const na = a === "?" || a === "coffee" ? NaN : parseFloat(a);
+  const nb = b === "?" || b === "coffee" ? NaN : parseFloat(b);
+  if (!Number.isNaN(na) && !Number.isNaN(nb)) {
+    return na - nb;
+  }
+  return DECK_TIE_ORDER.indexOf(a) - DECK_TIE_ORDER.indexOf(b);
+}
+
 /**
  * @param {Record<string, string> | undefined} votes
  * @param {boolean} revealed
@@ -32,8 +44,9 @@ export function computeVoteRecommendation(votes, revealed, opt = {}) {
     return { line: "Revote: 3+ options tied for the top" };
   }
   if (leaders.length === 2) {
+    const [a, b] = [...leaders].sort(compareLeaderValues);
     return {
-      line: `Tie between ${format(leaders[0])} & ${format(leaders[1])}`,
+      line: `Tie between ${format(a)} & ${format(b)}`,
     };
   }
 

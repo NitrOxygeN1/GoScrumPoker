@@ -188,19 +188,19 @@ export default function App() {
   );
   const [activeRoomId, setActiveRoomId] = useState("");
   const [roomState, setRoomState] = useState(initialRoomState);
-  const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [selectedCard, setSelectedCard] = useState(null);
-  const [copyToast, setCopyToast] = useState("");
+  const [toast, setToast] = useState(null);
   const [editingYouName, setEditingYouName] = useState(false);
   const [editNameDraft, setEditNameDraft] = useState("");
+  const [linkJoinFailed, setLinkJoinFailed] = useState(false);
   const [linkJoining, setLinkJoining] = useState(() => {
     if (typeof window === "undefined") return false;
     return (
       parsePathForLobby().fromRoomLink && readDisplayName().trim() !== ""
     );
   });
-  const copyToastTimerRef = useRef(0);
+  const toastTimerRef = useRef(0);
   const prevRevealedRef = useRef(false);
   const userIdForStateRef = useRef("");
   const canAutoJoinFromLinkRef = useRef(undefined);
@@ -211,10 +211,10 @@ export default function App() {
   displayNameForJoinRef.current = displayName;
   const autoLinkJoinTried = useRef(false);
 
-  const showCopyToast = useCallback((message) => {
-    window.clearTimeout(copyToastTimerRef.current);
-    setCopyToast(message);
-    copyToastTimerRef.current = window.setTimeout(() => setCopyToast(""), 2000);
+  const showToast = useCallback((message, kind = "default") => {
+    window.clearTimeout(toastTimerRef.current);
+    setToast({ message, kind });
+    toastTimerRef.current = window.setTimeout(() => setToast(null), 2000);
   }, []);
 
   useEffect(() => {
@@ -250,7 +250,7 @@ export default function App() {
   }, [phase, activeRoomId]);
 
   useEffect(() => {
-    return () => window.clearTimeout(copyToastTimerRef.current);
+    return () => window.clearTimeout(toastTimerRef.current);
   }, []);
 
   useEffect(() => {
@@ -303,11 +303,10 @@ export default function App() {
           }
         }
       }
-      setError("");
     } else if (msg.type === "error" && msg.payload?.message) {
-      setError(msg.payload.message);
+      showToast(msg.payload.message, "error");
     }
-  }, []);
+  }, [showToast]);
 
   const { userId, vote, reveal, reset, rejoinWithName } = useRoomSocket({
     roomId: activeRoomId,
@@ -317,6 +316,18 @@ export default function App() {
   });
 
   userIdForStateRef.current = userId;
+
+  const trySaveYouName = useCallback(() => {
+    const n = editNameDraft.trim();
+    if (!n) {
+      showToast("Enter your name first.", "error");
+      return;
+    }
+    setDisplayName(n);
+    saveDisplayName(n);
+    rejoinWithName(n);
+    setEditingYouName(false);
+  }, [editNameDraft, showToast, rejoinWithName]);
 
   const me = useMemo(
     () => roomState.users.find((u) => u.id === userId),
@@ -344,7 +355,6 @@ export default function App() {
 
   const joinByRoomId = useCallback(async (id, { fromAuto = false } = {}) => {
     if (!id) return;
-    setError("");
     if (fromAuto) {
       setLinkJoining(true);
     } else {
@@ -353,7 +363,8 @@ export default function App() {
     try {
       const res = await fetch(`/rooms/${encodeURIComponent(id)}`);
       if (res.status === 404) {
-        setError("Room not found.");
+        showToast("Room not found.", "error");
+        if (fromAuto) setLinkJoinFailed(true);
         return;
       }
       if (!res.ok) throw new Error("Could not load room");
@@ -367,7 +378,8 @@ export default function App() {
       setRoomState(initialRoomState());
       setSelectedCard(null);
     } catch (e) {
-      setError(e.message || "Join failed");
+      showToast(e.message || "Join failed", "error");
+      if (fromAuto) setLinkJoinFailed(true);
     } finally {
       if (fromAuto) {
         setLinkJoining(false);
@@ -375,7 +387,7 @@ export default function App() {
         setBusy(false);
       }
     }
-  }, []);
+  }, [showToast]);
 
   useEffect(() => {
     if (phase !== "lobby" || !joinFromRoomLink) return;
@@ -388,9 +400,8 @@ export default function App() {
   }, [joinFromRoomLink, roomIdInput, phase, joinByRoomId]);
 
   async function createRoom() {
-    setError("");
     if (!displayName.trim()) {
-      setError("Enter your name first.");
+      showToast("Enter your name first.", "error");
       return;
     }
     setBusy(true);
@@ -404,21 +415,20 @@ export default function App() {
       setRoomState(initialRoomState());
       setSelectedCard(null);
     } catch (e) {
-      setError(e.message || "Create failed");
+      showToast(e.message || "Create failed", "error");
     } finally {
       setBusy(false);
     }
   }
 
   function joinRoom() {
-    setError("");
     const id = roomIdInput.trim();
     if (!displayName.trim()) {
-      setError("Enter your name first.");
+      showToast("Enter your name first.", "error");
       return;
     }
     if (!id) {
-      setError("Enter a room ID.");
+      showToast("Enter a room ID.", "error");
       return;
     }
     joinByRoomId(id, { fromAuto: false });
@@ -430,7 +440,7 @@ export default function App() {
     setActiveRoomId("");
     setRoomState(initialRoomState());
     setSelectedCard(null);
-    setError("");
+    setLinkJoinFailed(false);
     setEditingYouName(false);
     setLinkJoining(false);
     setJoinFromRoomLink(false);
@@ -443,7 +453,7 @@ export default function App() {
   }
 
   const goToMainLobby = useCallback(() => {
-    setError("");
+    setLinkJoinFailed(false);
     setLinkJoining(false);
     setJoinFromRoomLink(false);
     setRoomIdInput("");
@@ -464,9 +474,9 @@ export default function App() {
     if (!activeRoomId) return;
     try {
       await navigator.clipboard.writeText(activeRoomId);
-      showCopyToast("Room ID copied");
+      showToast("Room ID copied");
     } catch {
-      showCopyToast("Copy failed");
+      showToast("Copy failed", "error");
     }
   }
 
@@ -474,9 +484,9 @@ export default function App() {
     if (!roomShareUrl) return;
     try {
       await navigator.clipboard.writeText(roomShareUrl);
-      showCopyToast("Link copied");
+      showToast("Link copied");
     } catch {
-      showCopyToast("Copy failed");
+      showToast("Copy failed", "error");
     }
   }
 
@@ -489,14 +499,14 @@ export default function App() {
     phase === "lobby" &&
     joinFromRoomLink &&
     !linkJoining &&
-    !canAutoJoinFromLinkRef.current &&
-    !(displayName.trim() && error);
+    !canAutoJoinFromLinkRef.current;
   const showLinkErrorPanel =
     phase === "lobby" &&
     joinFromRoomLink &&
     !linkJoining &&
-    !!displayName.trim() &&
-    !!error;
+    canAutoJoinFromLinkRef.current &&
+    displayName.trim() &&
+    linkJoinFailed;
 
   useEffect(() => {
     if (!showLinkNameForm && !showLinkErrorPanel) return;
@@ -512,9 +522,15 @@ export default function App() {
 
   return (
     <>
-      {copyToast ? (
-        <div className="copy-toast" role="status">
-          {copyToast}
+      {toast ? (
+        <div
+          className={
+            toast.kind === "error" ? "app-toast app-toast--error" : "app-toast"
+          }
+          role={toast.kind === "error" ? "alert" : "status"}
+          aria-live={toast.kind === "error" ? "assertive" : "polite"}
+        >
+          {toast.message}
         </div>
       ) : null}
       {!(phase === "lobby" && joinFromRoomLink && linkJoining) && (
@@ -584,26 +600,28 @@ export default function App() {
                 Return to home page
               </button>
             </div>
-            {error && <p className="error">{error}</p>}
           </form>
         </div>
       )}
 
-      {phase === "lobby" && joinFromRoomLink && !linkJoining && displayName.trim() && error && (
+      {showLinkErrorPanel && (
         <div className="panel join-link-panel join-link-error-panel">
-          <div className="join-link-header join-link-header--error">
-            <p className="error" style={{ margin: 0 }}>
-              {error}
-            </p>
+          <div
+            className="join-link-lead-section"
+            style={{ minHeight: "0", paddingBottom: 0 }}
+          >
             <button
               type="button"
-              className="icon-btn join-link-close"
+              className="icon-btn join-link-close join-link-close--corner"
               onClick={goToMainLobby}
               title="Return to home page (Esc)"
               aria-label="Return to home page"
             >
               <IconClose />
             </button>
+            <span className="visually-hidden">
+              The room could not be opened. Details were shown in a message.
+            </span>
           </div>
           <div className="row join-link-actions" style={{ marginTop: "0.75rem" }}>
             <button type="button" className="ghost" onClick={goToMainLobby}>
@@ -647,7 +665,6 @@ export default function App() {
               Join room
             </button>
           </div>
-          {error && <p className="error">{error}</p>}
         </div>
       )}
 
@@ -689,7 +706,6 @@ export default function App() {
                 </button>
               </div>
             </div>
-            {error && <p className="error">{error}</p>}
           </div>
 
           <div className="panel you-panel">
@@ -698,18 +714,13 @@ export default function App() {
               <div className="you-line you-line--edit">
                 <input
                   className="you-name-input"
+                  type="text"
                   value={editNameDraft}
                   onChange={(e) => setEditNameDraft(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       e.preventDefault();
-                      const n = editNameDraft.trim();
-                      if (n) {
-                        setDisplayName(n);
-                        saveDisplayName(n);
-                        rejoinWithName(n);
-                        setEditingYouName(false);
-                      }
+                      trySaveYouName();
                     }
                     if (e.key === "Escape") {
                       e.preventDefault();
@@ -738,15 +749,7 @@ export default function App() {
                     type="button"
                     className="icon-btn you-edit-ctl you-edit-ctl--apply"
                     title="Save"
-                    onClick={() => {
-                      const n = editNameDraft.trim();
-                      if (n) {
-                        setDisplayName(n);
-                        saveDisplayName(n);
-                        rejoinWithName(n);
-                        setEditingYouName(false);
-                      }
-                    }}
+                    onClick={() => trySaveYouName()}
                     aria-label="Save name"
                   >
                     <IconCheck />
