@@ -22,12 +22,15 @@ export function useRoomSocket({ roomId, displayName, enabled, onServerMessage })
   const wsRef = useRef(null);
   const userIdRef = useRef(getOrCreateUserId());
   const onMessageRef = useRef(onServerMessage);
+  const nameForOpenRef = useRef(displayName);
+  nameForOpenRef.current = displayName;
   onMessageRef.current = onServerMessage;
 
   useEffect(() => {
-    if (!enabled || !roomId || !displayName?.trim()) return;
+    if (!enabled || !roomId) return;
+    const initialName = (nameForOpenRef.current || "").trim();
+    if (!initialName) return;
 
-    // Single "://" in the URL; avoid `wss:` + `//` template drift that is easy to misread as a bug
     const scheme = window.location.protocol === "https:" ? "wss" : "ws";
     const ws = new WebSocket(
       `${scheme}://${window.location.host}/ws/${encodeURIComponent(roomId)}`
@@ -35,12 +38,15 @@ export function useRoomSocket({ roomId, displayName, enabled, onServerMessage })
     wsRef.current = ws;
 
     ws.onopen = () => {
-      ws.send(
-        JSON.stringify({
-          type: "join",
-          payload: { user_id: userIdRef.current, name: displayName.trim() },
-        })
-      );
+      const n = (nameForOpenRef.current || "").trim();
+      if (n) {
+        ws.send(
+          JSON.stringify({
+            type: "join",
+            payload: { user_id: userIdRef.current, name: n },
+          })
+        );
+      }
     };
 
     ws.onmessage = (ev) => {
@@ -56,7 +62,7 @@ export function useRoomSocket({ roomId, displayName, enabled, onServerMessage })
       ws.close();
       if (wsRef.current === ws) wsRef.current = null;
     };
-  }, [roomId, displayName, enabled]);
+  }, [roomId, enabled]);
 
   const send = useCallback((obj) => {
     const ws = wsRef.current;
@@ -65,10 +71,24 @@ export function useRoomSocket({ roomId, displayName, enabled, onServerMessage })
     }
   }, []);
 
+  /** Updates display name in the room (reuses server join/upsert). */
+  const rejoinWithName = useCallback(
+    (name) => {
+      const n = (name || "").trim();
+      if (!n) return;
+      send({
+        type: "join",
+        payload: { user_id: userIdRef.current, name: n },
+      });
+    },
+    [send]
+  );
+
   return {
     userId: userIdRef.current,
     vote: (value) => send({ type: "vote", payload: { value } }),
     reveal: () => send({ type: "reveal" }),
     reset: () => send({ type: "reset" }),
+    rejoinWithName,
   };
 }

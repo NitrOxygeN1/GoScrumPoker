@@ -137,6 +137,52 @@ h1.join-link-page-title {
   gap: 0.5rem;
 }
 
+.you-line {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+  min-height: 2.45rem;
+}
+
+.you-line--edit {
+  flex-wrap: nowrap;
+}
+
+.you-line-name {
+  font-size: 0.95rem;
+  word-break: break-word;
+  min-width: 0;
+  flex: 1;
+}
+
+.you-line-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.you-name-input {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+button.you-edit-ctl {
+  min-width: 2.15rem;
+  min-height: 2.15rem;
+  padding: 0.3rem;
+}
+
+button.you-edit-ctl--apply {
+  color: var(--success);
+  border-color: var(--border);
+}
+
 label {
   display: block;
   font-size: 0.75rem;
@@ -278,6 +324,31 @@ button:disabled {
   gap: 0.5rem;
   flex-wrap: wrap;
   margin-top: 1rem;
+}
+
+.actions-with-rec {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  column-gap: 1rem;
+  row-gap: 0.5rem;
+}
+
+.actions-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  flex: 0 0 auto;
+}
+
+.actions-recommend {
+  margin-left: auto;
+  text-align: right;
+  font-size: 0.9rem;
+  color: var(--muted);
+  max-width: 18rem;
+  line-height: 1.35;
 }
 
 .back {

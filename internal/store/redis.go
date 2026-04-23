@@ -188,9 +188,6 @@ func (s *Redis) Vote(ctx context.Context, roomID, userID, value string) error {
 		if _, ok := doc.Users[userID]; !ok {
 			return ErrUserNotInRoom
 		}
-		if doc.Revealed {
-			return ErrVotesRevealed
-		}
 		doc.Votes[userID] = value
 		return nil
 	})

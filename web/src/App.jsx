@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRoomSocket } from "./hooks/useRoomSocket.js";
 import { readDisplayName, saveDisplayName } from "./displayNameStorage.js";
+import { computeVoteRecommendation } from "./voteRecommendation.js";
 
 const CARDS = ["1", "2", "3", "5", "8", "13", "?", "coffee"];
+const STORY_NUMS = [1, 2, 3, 5, 8, 13];
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -27,6 +29,55 @@ function formatVote(v) {
 
 function initialRoomState() {
   return { id: "", revealed: false, users: [], votes: {} };
+}
+
+const nameCollator = new Intl.Collator(undefined, { sensitivity: "base" });
+
+function compareByName(a, b) {
+  return nameCollator.compare(a.name || "", b.name || "");
+}
+
+/**
+ * Revealed order: no vote, then "?", "coffee", then numbers ascending. Tie: name.
+ * Hidden order: not voted first, then voted; tie: name.
+ */
+function sortUsersForDisplay(users, votes, revealed) {
+  const list = [...users];
+  if (!revealed) {
+    list.sort((a, b) => {
+      if (a.voted !== b.voted) {
+        return a.voted ? 1 : -1;
+      }
+      return compareByName(a, b);
+    });
+    return list;
+  }
+  function tier(v) {
+    if (v == null || v === "") return 0;
+    if (v === "?") return 1;
+    if (v === "coffee") return 2;
+    const n = parseFloat(String(v));
+    if (!Number.isNaN(n)) return 3;
+    return 4;
+  }
+  list.sort((a, b) => {
+    const va = votes[a.id];
+    const vb = votes[b.id];
+    const ta = tier(va);
+    const tb = tier(vb);
+    if (ta !== tb) {
+      return ta - tb;
+    }
+    if (ta === 3) {
+      const na = parseFloat(String(va));
+      const nb = parseFloat(String(vb));
+      if (na !== nb) {
+        return na - nb;
+      }
+    }
+    return compareByName(a, b);
+  });
+  return list;
 }
 
 function IconClipboard() {
@@ -89,6 +140,43 @@ function IconClose() {
   );
 }
 
+function IconEdit() {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+    </svg>
+  );
+}
+
+function IconCheck() {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <polyline points="4 12 9 17 20 6" />
+    </svg>
+  );
+}
+
 export default function App() {
   const [phase, setPhase] = useState("lobby");
   const [displayName, setDisplayName] = useState(() => readDisplayName());
@@ -104,6 +192,8 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [selectedCard, setSelectedCard] = useState(null);
   const [copyToast, setCopyToast] = useState("");
+  const [editingYouName, setEditingYouName] = useState(false);
+  const [editNameDraft, setEditNameDraft] = useState("");
   const [linkJoining, setLinkJoining] = useState(() => {
     if (typeof window === "undefined") return false;
     return (
@@ -112,6 +202,7 @@ export default function App() {
   });
   const copyToastTimerRef = useRef(0);
   const prevRevealedRef = useRef(false);
+  const userIdForStateRef = useRef("");
   const canAutoJoinFromLinkRef = useRef(undefined);
   if (canAutoJoinFromLinkRef.current === undefined) {
     canAutoJoinFromLinkRef.current = readDisplayName().trim() !== "";
@@ -194,28 +285,61 @@ export default function App() {
         setSelectedCard(null);
       }
       prevRevealedRef.current = revealed;
+      const votes = msg.payload.votes ?? {};
       setRoomState({
         id: msg.payload.id ?? "",
         revealed,
         users: msg.payload.users ?? [],
-        votes: msg.payload.votes ?? {},
+        votes,
       });
+      if (revealed) {
+        const uid = userIdForStateRef.current;
+        if (uid) {
+          const mine = votes[uid];
+          if (mine != null && String(mine).trim() !== "") {
+            setSelectedCard(mine);
+          } else {
+            setSelectedCard(null);
+          }
+        }
+      }
       setError("");
     } else if (msg.type === "error" && msg.payload?.message) {
       setError(msg.payload.message);
     }
   }, []);
 
-  const { userId, vote, reveal, reset } = useRoomSocket({
+  const { userId, vote, reveal, reset, rejoinWithName } = useRoomSocket({
     roomId: activeRoomId,
     displayName,
     enabled: phase === "room",
     onServerMessage: handleServerMessage,
   });
 
+  userIdForStateRef.current = userId;
+
   const me = useMemo(
     () => roomState.users.find((u) => u.id === userId),
     [roomState.users, userId]
+  );
+
+  const sortedParticipants = useMemo(
+    () =>
+      sortUsersForDisplay(
+        roomState.users,
+        roomState.votes,
+        roomState.revealed
+      ),
+    [roomState.users, roomState.votes, roomState.revealed]
+  );
+
+  const voteRecommendation = useMemo(
+    () =>
+      computeVoteRecommendation(roomState.votes, roomState.revealed, {
+        format: formatVote,
+        numericOptions: STORY_NUMS,
+      }),
+    [roomState.votes, roomState.revealed]
   );
 
   const joinByRoomId = useCallback(async (id, { fromAuto = false } = {}) => {
@@ -307,6 +431,7 @@ export default function App() {
     setRoomState(initialRoomState());
     setSelectedCard(null);
     setError("");
+    setEditingYouName(false);
     setLinkJoining(false);
     setJoinFromRoomLink(false);
     setRoomIdInput("");
@@ -567,15 +692,92 @@ export default function App() {
             {error && <p className="error">{error}</p>}
           </div>
 
-          <div className="panel">
+          <div className="panel you-panel">
             <div className="muted">You</div>
-            <div>
-              {displayName.trim()} {me?.voted ? <span className="badge voted">voted</span> : <span className="badge">not voted</span>}
-            </div>
-            {!roomState.revealed && (
+            {editingYouName ? (
+              <div className="you-line you-line--edit">
+                <input
+                  className="you-name-input"
+                  value={editNameDraft}
+                  onChange={(e) => setEditNameDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      const n = editNameDraft.trim();
+                      if (n) {
+                        setDisplayName(n);
+                        saveDisplayName(n);
+                        rejoinWithName(n);
+                        setEditingYouName(false);
+                      }
+                    }
+                    if (e.key === "Escape") {
+                      e.preventDefault();
+                      setEditNameDraft((displayName || "").trim());
+                      setEditingYouName(false);
+                    }
+                  }}
+                  autoFocus
+                  maxLength={80}
+                  aria-label="Your display name"
+                />
+                <div className="you-line-actions">
+                  <button
+                    type="button"
+                    className="icon-btn you-edit-ctl"
+                    title="Discard (Esc)"
+                    onClick={() => {
+                      setEditNameDraft((displayName || "").trim());
+                      setEditingYouName(false);
+                    }}
+                    aria-label="Cancel edit"
+                  >
+                    <IconClose />
+                  </button>
+                  <button
+                    type="button"
+                    className="icon-btn you-edit-ctl you-edit-ctl--apply"
+                    title="Save"
+                    onClick={() => {
+                      const n = editNameDraft.trim();
+                      if (n) {
+                        setDisplayName(n);
+                        saveDisplayName(n);
+                        rejoinWithName(n);
+                        setEditingYouName(false);
+                      }
+                    }}
+                    aria-label="Save name"
+                  >
+                    <IconCheck />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="you-line you-line--view">
+                <span className="you-line-name">{displayName.trim()}</span>
+                <div className="you-line-actions">
+                  <button
+                    type="button"
+                    className="icon-btn you-edit-ctl"
+                    title="Edit your name"
+                    onClick={() => {
+                      setEditNameDraft((displayName || "").trim());
+                      setEditingYouName(true);
+                    }}
+                    aria-label="Edit your name"
+                  >
+                    <IconEdit />
+                  </button>
+                </div>
+              </div>
+            )}
+            {me && (
               <>
                 <p className="muted" style={{ marginTop: "0.75rem" }}>
-                  Pick a card (tap again to change)
+                  {roomState.revealed
+                    ? "Change your card anytime (taps update votes for everyone)."
+                    : "Pick a card (tap again to change)."}
                 </p>
                 <div className="cards">
                   {CARDS.map((c) => (
@@ -591,12 +793,6 @@ export default function App() {
                 </div>
               </>
             )}
-            {roomState.revealed && me && (
-              <p style={{ marginTop: "0.75rem" }}>
-                Your card:{" "}
-                <strong>{formatVote(roomState.votes[userId])}</strong>
-              </p>
-            )}
           </div>
 
           <div className="panel">
@@ -605,12 +801,14 @@ export default function App() {
               {roomState.users.length === 0 && (
                 <li className="muted">Connecting…</li>
               )}
-              {roomState.users.map((u) => (
+              {sortedParticipants.map((u) => (
                 <li key={u.id}>
                   <span>{u.name}</span>
                   <span>
                     {roomState.revealed ? (
-                      <span className="badge revealed">{formatVote(roomState.votes[u.id])}</span>
+                      <span className="badge revealed">
+                        {formatVote(roomState.votes[u.id])}
+                      </span>
                     ) : u.voted ? (
                       <span className="badge voted">voted</span>
                     ) : (
@@ -622,13 +820,20 @@ export default function App() {
             </ul>
           </div>
 
-          <div className="panel actions">
-            <button type="button" className="primary" onClick={() => reveal()}>
-              Reveal votes
-            </button>
-            <button type="button" onClick={() => reset()}>
-              Reset round
-            </button>
+          <div className="panel actions actions-with-rec">
+            <div className="actions-btns">
+              <button type="button" className="primary" onClick={() => reveal()}>
+                Reveal votes
+              </button>
+              <button type="button" onClick={() => reset()}>
+                Reset round
+              </button>
+            </div>
+            {roomState.revealed && voteRecommendation && (
+              <div className="actions-recommend" role="status">
+                {voteRecommendation.line}
+              </div>
+            )}
           </div>
         </>
       )}

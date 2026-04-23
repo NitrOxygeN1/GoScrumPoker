@@ -18,7 +18,7 @@ func NewVoteService(votes repository.VoteRepository) *VoteService {
 	return &VoteService{votes: votes}
 }
 
-// PlaceVote records or replaces a user's vote while the round is hidden.
+// PlaceVote records or replaces a user's vote; allowed before or after reveal.
 func (s *VoteService) PlaceVote(ctx context.Context, roomID, userID, value string) error {
 	value = strings.TrimSpace(value)
 	if value == "" {
@@ -29,9 +29,6 @@ func (s *VoteService) PlaceVote(ctx context.Context, roomID, userID, value strin
 	return s.votes.Apply(ctx, roomID, func(r *domain.Room) error {
 		if _, ok := r.Users[userID]; !ok {
 			return repository.ErrUserNotInRoom
-		}
-		if r.Revealed {
-			return repository.ErrVotesRevealed
 		}
 		r.Votes[userID] = value
 		return nil

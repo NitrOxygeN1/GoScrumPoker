@@ -75,7 +75,7 @@ func (m *Memory) Join(ctx context.Context, roomID string, user domain.User) erro
 	return nil
 }
 
-// Vote records or updates a user's vote while votes are hidden.
+// Vote records or updates a user's vote (before or after reveal).
 func (m *Memory) Vote(ctx context.Context, roomID, userID, value string) error {
 	_ = ctx
 	value = strings.TrimSpace(value)
@@ -90,9 +90,6 @@ func (m *Memory) Vote(ctx context.Context, roomID, userID, value string) error {
 	}
 	if _, ok := r.Users[userID]; !ok {
 		return ErrUserNotInRoom
-	}
-	if r.Revealed {
-		return ErrVotesRevealed
 	}
 	r.Votes[userID] = value
 	return nil
