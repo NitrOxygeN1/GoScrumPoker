@@ -47,6 +47,7 @@ var upgrader = websocket.Upgrader{
 // NewRouter wires HTTP routes and middleware.
 func NewRouter(dep Dependencies) http.Handler {
 	r := chi.NewRouter()
+	r.Use(normalizePathMiddleware())
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
 	r.Use(recoverer(dep.Log))
