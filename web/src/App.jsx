@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRoomSocket } from "./hooks/useRoomSocket.js";
+import { readDisplayName, saveDisplayName } from "./displayNameStorage.js";
 
 const CARDS = ["1", "2", "3", "5", "8", "13", "?", "coffee"];
 
@@ -69,9 +70,28 @@ function IconShareLink() {
   );
 }
 
+function IconClose() {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
+    </svg>
+  );
+}
+
 export default function App() {
   const [phase, setPhase] = useState("lobby");
-  const [displayName, setDisplayName] = useState("");
+  const [displayName, setDisplayName] = useState(() => readDisplayName());
   const [roomIdInput, setRoomIdInput] = useState(
     () => parsePathForLobby().roomId
   );
@@ -128,6 +148,26 @@ export default function App() {
   useEffect(() => {
     return () => window.clearTimeout(copyToastTimerRef.current);
   }, []);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (displayName.trim()) {
+        saveDisplayName(displayName.trim());
+      } else {
+        saveDisplayName("");
+      }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [displayName]);
+
+  useEffect(() => {
+    if (phase !== "room" || !activeRoomId) return;
+    const n = displayName.trim();
+    if (n) {
+      // Refresh 7-day window on every visit to a room
+      saveDisplayName(n);
+    }
+  }, [phase, activeRoomId, displayName]);
 
   const handleServerMessage = useCallback((msg) => {
     if (msg.type === "state" && msg.payload) {
@@ -287,7 +327,16 @@ export default function App() {
       )}
 
       {phase === "lobby" && joinFromRoomLink && (
-        <div className="panel">
+        <div className="panel join-link-panel">
+          <button
+            type="button"
+            className="icon-btn join-link-close"
+            onClick={goToMainLobby}
+            title="Return to home page"
+            aria-label="Return to home page"
+          >
+            <IconClose />
+          </button>
           <p className="sub" style={{ marginTop: 0, marginBottom: "1rem" }}>
             You’re joining a room from a link. Enter your name to continue.
           </p>
@@ -299,18 +348,19 @@ export default function App() {
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
             autoComplete="nickname"
-            autoFocus
+            autoFocus={!displayName.trim()}
           />
-          <div className="row" style={{ marginTop: "1rem" }}>
+          <div
+            className="row join-link-actions"
+            style={{ marginTop: "1rem" }}
+          >
             <button type="button" className="primary" disabled={busy} onClick={joinRoom}>
               Join room
             </button>
-          </div>
-          <p className="muted" style={{ marginTop: "1rem" }}>
-            <button type="button" className="back ghost" onClick={goToMainLobby}>
-              Create a new room or enter a different ID
+            <button type="button" className="ghost" onClick={goToMainLobby}>
+              Return to home page
             </button>
-          </p>
+          </div>
           {error && <p className="error">{error}</p>}
         </div>
       )}
