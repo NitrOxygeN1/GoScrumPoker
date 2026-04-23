@@ -23,6 +23,16 @@ function parsePathForLobby() {
   return { fromRoomLink: false, roomId: "" };
 }
 
+/** @returns {null | "path"} — invalid URL; `null` means `/` or a single valid room UUID. */
+function getPathNotFoundKind() {
+  if (typeof window === "undefined") return null;
+  const path = (window.location.pathname || "/").replace(/\/+/g, "/");
+  const part = path.replace(/^\/+/, "").split("/").filter(Boolean);
+  if (part.length === 0) return null;
+  if (part.length > 1) return "path";
+  return UUID_RE.test(part[0]) ? null : "path";
+}
+
 function formatVote(v) {
   if (v == null || v === "") return "—";
   return v === "coffee" ? "☕" : v;
@@ -201,6 +211,8 @@ export default function App() {
       parsePathForLobby().fromRoomLink && readDisplayName().trim() !== ""
     );
   });
+  /** 404: invalid app URL, or room link with no such room. */
+  const [notFound, setNotFound] = useState(() => getPathNotFoundKind());
   const toastTimerRef = useRef(0);
   const prevRevealedRef = useRef(false);
   const userIdForStateRef = useRef("");
@@ -339,8 +351,11 @@ export default function App() {
     try {
       const res = await fetch(`/rooms/${encodeURIComponent(id)}`);
       if (res.status === 404) {
-        showToast("Room not found.", "error");
-        if (fromAuto) setLinkJoinFailed(true);
+        if (joinFromRoomLink) {
+          setNotFound("room");
+        } else {
+          showToast("Room not found.", "error");
+        }
         return;
       }
       if (!res.ok) throw new Error("Could not load room");
@@ -364,7 +379,7 @@ export default function App() {
         setBusy(false);
       }
     }
-  }, [showToast]);
+  }, [showToast, joinFromRoomLink]);
 
   useEffect(() => {
     if (phase !== "lobby" || !joinFromRoomLink) return;
@@ -446,6 +461,7 @@ export default function App() {
   }
 
   const goToMainLobby = useCallback(() => {
+    setNotFound(null);
     setLinkJoinFailed(false);
     setLinkJoining(false);
     setJoinFromRoomLink(false);
@@ -459,6 +475,10 @@ export default function App() {
   }, []);
 
   function goHome() {
+    if (notFound) {
+      goToMainLobby();
+      return;
+    }
     if (phase === "room") {
       leaveRoom();
       return;
@@ -529,6 +549,18 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey, true);
   }, [showLinkNameForm, showLinkErrorPanel, goToMainLobby]);
 
+  useEffect(() => {
+    if (!notFound) return;
+    const onKey = (e) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        goToMainLobby();
+      }
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [notFound, goToMainLobby]);
+
   return (
     <>
       {toast ? (
@@ -542,24 +574,45 @@ export default function App() {
           {toast.message}
         </div>
       ) : null}
-      {!(phase === "lobby" && joinFromRoomLink && linkJoining) && (
-        <button
-          type="button"
-          className={[
-            "app-title",
-            phase === "lobby" && joinFromRoomLink && !linkJoining
-              ? "app-title--join-link"
-              : null,
-          ]
-            .filter(Boolean)
-            .join(" ")}
-          onClick={goHome}
-          title="Home"
-        >
-          Scrum Poker
-        </button>
-      )}
-      {phase === "lobby" && joinFromRoomLink && linkJoining && (
+      {notFound ? (
+        <>
+          <button type="button" className="app-title" onClick={goHome} title="Home">
+            Scrum Poker
+          </button>
+          <div className="panel not-found" role="status" aria-live="polite">
+            <h2 className="not-found-title">Not found (404)</h2>
+            <p className="muted" style={{ marginTop: "0.5rem" }}>
+              {notFound === "path"
+                ? "This page does not exist, or the address is misspelled or not supported by this app."
+                : "We could not find a room for this link. It may have been removed, or the ID is wrong or expired."}
+            </p>
+            <div className="row" style={{ marginTop: "1rem" }}>
+              <button type="button" className="primary" onClick={goToMainLobby}>
+                Back to home
+              </button>
+            </div>
+          </div>
+        </>
+      ) : (
+        <>
+          {!(phase === "lobby" && joinFromRoomLink && linkJoining) && (
+            <button
+              type="button"
+              className={[
+                "app-title",
+                phase === "lobby" && joinFromRoomLink && !linkJoining
+                  ? "app-title--join-link"
+                  : null,
+              ]
+                .filter(Boolean)
+                .join(" ")}
+              onClick={goHome}
+              title="Home"
+            >
+              Scrum Poker
+            </button>
+          )}
+          {phase === "lobby" && joinFromRoomLink && linkJoining && (
         <p className="link-join-status" role="status" aria-live="polite">
           Joining room…
         </p>
@@ -655,15 +708,17 @@ export default function App() {
             <button type="button" className="primary" disabled={busy} onClick={createRoom}>
               Create room
             </button>
-            <button
-              type="button"
-              className="ghost"
-              disabled={busy || !readLastRoomId()}
-              onClick={rejoinLastRoom}
-              title="Open the room you used last (this device)"
-            >
-              Last room
-            </button>
+            {readLastRoomId() ? (
+              <button
+                type="button"
+                className="ghost"
+                disabled={busy}
+                onClick={rejoinLastRoom}
+                title="Open the room you used last (this device)"
+              >
+                Last room
+              </button>
+            ) : null}
           </div>
 
           <p className="muted" style={{ marginTop: "1.25rem" }}>
@@ -858,6 +913,8 @@ export default function App() {
               </div>
             )}
           </div>
+        </>
+      )}
         </>
       )}
     </>

@@ -305,6 +305,13 @@ button:disabled {
   background: var(--accent-dim);
 }
 
+.not-found-title {
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
 .muted {
   color: var(--muted);
   font-size: 0.85rem;
