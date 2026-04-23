@@ -1,10 +1,13 @@
 package httpserver
 
 import (
+	"bytes"
 	"net/http"
+	"os"
 	"path"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // normalizePathMiddleware coalesces duplicate slashes (e.g. //) to a single "/".
@@ -30,13 +33,31 @@ func normalizePathMiddleware() func(next http.Handler) http.Handler {
 	}
 }
 
-// newStaticHandler serves the Vite dist with http.ServeFile / http.ServeContent
-// only, never http.FileServer (avoids 301 to Location: // for directory "/" ).
+// newStaticHandler serves the Vite dist. HTML is served with http.ServeContent over an
+// in-memory copy of index.html, not http.ServeFile, so the standard library never
+// issues redirects that resolve to a scheme-relative "Location: //" in the address bar.
 func newStaticHandler(webRoot string) http.Handler {
 	abs, err := filepath.Abs(webRoot)
 	if err != nil {
 		abs = webRoot
 	}
+	indexPath := filepath.Join(abs, "index.html")
+	indexData, err := os.ReadFile(indexPath)
+	if err != nil {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			http.Error(w, "static ui unavailable", http.StatusServiceUnavailable)
+		})
+	}
+	var modTime time.Time
+	if st, err := os.Stat(indexPath); err == nil {
+		modTime = st.ModTime()
+	}
+
+	serveIndex := func(w http.ResponseWriter, r *http.Request) {
+		http.ServeContent(w, r, "index.html", modTime, bytes.NewReader(indexData))
+	}
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -51,7 +72,7 @@ func newStaticHandler(webRoot string) http.Handler {
 		}
 		rel := strings.TrimPrefix(up, "/")
 		if rel == "" {
-			http.ServeFile(w, r, filepath.Join(abs, "index.html"))
+			serveIndex(w, r)
 			return
 		}
 		if strings.HasPrefix(up, "/assets/") {
@@ -62,7 +83,7 @@ func newStaticHandler(webRoot string) http.Handler {
 			serveUnderStaticRoot(w, r, abs, rel)
 			return
 		}
-		http.ServeFile(w, r, filepath.Join(abs, "index.html"))
+		serveIndex(w, r)
 	})
 }
 

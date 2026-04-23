@@ -18,6 +18,10 @@ import (
 //   - WEB_ROOT — if set, directory with Vite `dist` output (index.html + assets/) to serve the SPA
 //     at / and for HTML5 fallback. Docker sets this to /app/web. Leave empty to serve API only.
 //
+//   - RUN_MIGRATIONS_ON_STARTUP — when "true" runs SQL migrate "up" before serving; when
+//     unset, defaults to true for prod or Render when DATABASE_URL is set (so deployed Postgres
+//     always gets schema). Set to "false" to skip (e.g. migrations run in CI only).
+//
 // Additional (optional) env vars are still read in Load for auth, migrations, and Redis TTL.
 type Config struct {
 	Port         string
@@ -112,15 +116,19 @@ func Load() Config {
 
 	migrationsPath := firstNonEmpty(os.Getenv("MIGRATIONS_PATH"), "migrations")
 
+	databaseURL := strings.TrimSpace(os.Getenv("DATABASE_URL"))
+	mRunV, mRunSet := os.LookupEnv("RUN_MIGRATIONS_ON_STARTUP")
+	runMigrations := resolveRunMigrationsOnStartup(mRunSet, mRunV, databaseURL, isProd)
+
 	return Config{
 		Port:                   port,
-		DatabaseURL:            strings.TrimSpace(os.Getenv("DATABASE_URL")),
+		DatabaseURL:            databaseURL,
 		RedisURL:               strings.TrimSpace(os.Getenv("REDIS_URL")),
 		Env:                    env,
 		WebRoot:                strings.TrimSpace(os.Getenv("WEB_ROOT")),
 		ShutdownTimeout:        timeout,
 		MigrationsPath:         migrationsPath,
-		RunMigrationsOnStartup: truthy(os.Getenv("RUN_MIGRATIONS_ON_STARTUP")),
+		RunMigrationsOnStartup: runMigrations,
 		RedisRoomTTL:           roomTTL,
 		Auth: AuthConfig{
 			GoogleClientID:     os.Getenv("GOOGLE_OAUTH_CLIENT_ID"),
@@ -152,6 +160,24 @@ func (c Config) ListenAddr() string {
 // IsProd reports whether ENV is production.
 func (c Config) IsProd() bool {
 	return c.Env == "prod"
+}
+
+func resolveRunMigrationsOnStartup(explicitlySet bool, v string, databaseURL string, isProd bool) bool {
+	if explicitlySet {
+		if strings.TrimSpace(v) == "" {
+			return false
+		}
+		switch strings.ToLower(strings.TrimSpace(v)) {
+		case "0", "false", "no", "off":
+			return false
+		default:
+			return truthy(v)
+		}
+	}
+	if databaseURL == "" {
+		return false
+	}
+	return isProd || IsRender()
 }
 
 func firstNonEmpty(a, b string) string {
