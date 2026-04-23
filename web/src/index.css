@@ -62,12 +62,9 @@ h1.join-link-page-title {
 /* Lead text sits in the vertical band between the panel top and the "Your name" label. */
 .join-link-lead-section {
   position: relative;
-  min-height: 4.25rem;
   display: flex;
-  align-items: center;
-  justify-content: center;
   text-align: center;
-  padding: 0 2.75rem 0.5rem;
+  padding: 0 0 1rem;
   margin: 0 0 0.15rem;
   box-sizing: border-box;
 }
