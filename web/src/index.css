@@ -356,8 +356,7 @@ button:disabled {
 }
 
 button.room-id-text {
-  display: block;
-  width: 100%;
+  display: inline;
   max-width: 100%;
   font: inherit;
   font-size: 0.9rem;
@@ -369,6 +368,7 @@ button.room-id-text {
   text-align: left;
   word-break: break-all;
   cursor: pointer;
+  vertical-align: baseline;
 }
 
 button.room-id-text:hover {
