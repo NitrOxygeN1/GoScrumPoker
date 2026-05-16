@@ -9,6 +9,8 @@ import (
 	migrate "github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/pgx/v5"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
+
+	"GoScrumPoker/internal/databaseurl"
 )
 
 // ErrNoChange is returned when the database is already at the requested version.
@@ -41,7 +43,7 @@ func Open(databaseURL, migrationsDir string) (*migrate.Migrate, error) {
 	if err != nil {
 		return nil, err
 	}
-	dbURL := toPgx5MigrateURL(databaseURL)
+	dbURL := toPgx5MigrateURL(databaseurl.RequireSSL(databaseURL))
 	m, err := migrate.New(src, dbURL)
 	if err != nil {
 		return nil, fmt.Errorf("migrate new: %w", err)

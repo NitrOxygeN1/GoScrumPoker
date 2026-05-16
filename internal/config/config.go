@@ -11,7 +11,7 @@ import (
 //
 // Core:
 //   - PORT — HTTP listen address port (e.g. "10000", "8080"). Render and most PaaS set this — bind with ":"+PORT (all interfaces). Default 8080.
-//   - DATABASE_URL — Postgres (libpq/Render-compatible URL; sslmode in query is honored by pgx).
+//   - DATABASE_URL — Postgres (libpq/Render-compatible URL; pgx connections use sslmode=require).
 //   - REDIS_URL — optional redis:// or rediss:// for room storage.
 //   - ENV — "dev" or "prod". If unset and RENDER is set (Render.com), defaults to prod.
 //   - RENDER — set by render.com; used to pick prod defaults and logging.

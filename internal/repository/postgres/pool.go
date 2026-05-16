@@ -6,11 +6,13 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"GoScrumPoker/internal/databaseurl"
 )
 
 // OpenPool creates a pgx connection pool from a libpq-style DATABASE_URL.
 func OpenPool(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
-	cfg, err := pgxpool.ParseConfig(databaseURL)
+	cfg, err := pgxpool.ParseConfig(databaseurl.RequireSSL(databaseURL))
 	if err != nil {
 		return nil, fmt.Errorf("parse database url: %w", err)
 	}
