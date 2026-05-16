@@ -1,9 +1,6 @@
 package auth
 
-import (
-	"context"
-	"net/http"
-)
+import "context"
 
 type ctxKey int
 
@@ -26,39 +23,4 @@ func MustUser(ctx context.Context) Profile {
 
 func withUser(ctx context.Context, p Profile) context.Context {
 	return context.WithValue(ctx, userCtxKey, p)
-}
-
-// writeSessionCookie sets the HttpOnly session JWT.
-func writeSessionCookie(w http.ResponseWriter, token string, maxAge int, secure bool) {
-	http.SetCookie(w, &http.Cookie{
-		Name:     cookieName,
-		Value:    token,
-		Path:     "/",
-		MaxAge:   maxAge,
-		HttpOnly: true,
-		Secure:   secure,
-		SameSite: http.SameSiteLaxMode,
-	})
-}
-
-// clearSessionCookie removes the session cookie.
-func clearSessionCookie(w http.ResponseWriter, secure bool) {
-	http.SetCookie(w, &http.Cookie{
-		Name:     cookieName,
-		Value:    "",
-		Path:     "/",
-		MaxAge:   -1,
-		HttpOnly: true,
-		Secure:   secure,
-		SameSite: http.SameSiteLaxMode,
-	})
-}
-
-// readSessionCookie returns the raw JWT from the request.
-func readSessionCookie(r *http.Request) string {
-	c, err := r.Cookie(cookieName)
-	if err != nil {
-		return ""
-	}
-	return c.Value
 }

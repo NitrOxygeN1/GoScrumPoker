@@ -123,6 +123,7 @@ func main() {
 		cfg.Auth.JWTExpires,
 		cfg.Auth.PostLoginRedirect,
 		cfg.Auth.CookieSecure,
+		auth.CookieSameSite(cfg.Auth.CookieSecure, cfg.MeetIFrameEmbed),
 	)
 	if authSvc == nil {
 		logger.Warn().Msg("Google OAuth disabled: set GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET, OAUTH_REDIRECT_URL, JWT_SECRET")
@@ -148,15 +149,16 @@ func main() {
 	srv := &http.Server{
 		Addr: cfg.ListenAddr(),
 		Handler: httpserver.NewRouter(httpserver.Dependencies{
-			Log:                    logger,
-			Rooms:                  roomSvc,
-			Votes:                  voteSvc,
-			Hub:                    hub,
-			Auth:                   authSvc,
-			DBBackend:              dbBackend,
-			DBPing:                 dbPing,
+			Log:                     logger,
+			Rooms:                   roomSvc,
+			Votes:                   voteSvc,
+			Hub:                     hub,
+			Auth:                    authSvc,
+			DBBackend:               dbBackend,
+			DBPing:                  dbPing,
 			HealthExposeErrorDetail: cfg.ExposeHealthErrorDetail(),
 			WebRoot:                 webRoot,
+			CSPFrameAncestorsExtra:  cfg.CSPFrameAncestorsExtra,
 		}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}

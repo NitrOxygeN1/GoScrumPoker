@@ -28,6 +28,59 @@ body {
   max-width: 720px;
   margin: 0 auto;
   padding: 1.5rem 1rem 3rem;
+  width: 100%;
+}
+
+/* Google Meet side panel / narrow iframe */
+html.embedded #root {
+  max-width: none;
+  padding: 0.75rem 0.65rem 1.5rem;
+}
+
+html.embedded h1,
+html.embedded button.app-title {
+  font-size: 1.1rem;
+}
+
+html.embedded .panel {
+  padding: 0.9rem;
+  margin-bottom: 0.75rem;
+}
+
+html.embedded .card-btn {
+  min-width: 2.6rem;
+  padding: 0.5rem 0.4rem;
+  font-size: 0.85rem;
+}
+
+html.embedded .actions-with-rec {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+html.embedded .actions-recommend {
+  margin-left: 0;
+  max-width: none;
+  text-align: left;
+}
+
+@media (max-width: 480px) {
+  #root {
+    padding: 0.85rem 0.65rem 1.75rem;
+  }
+
+  h1,
+  button.app-title {
+    font-size: 1.15rem;
+  }
+
+  .panel {
+    padding: 1rem;
+  }
+
+  .card-btn {
+    min-width: 2.75rem;
+  }
 }
 
 h1 {

@@ -35,6 +35,10 @@ type Config struct {
 	RunMigrationsOnStartup bool
 	Auth                   AuthConfig
 	RedisRoomTTL           time.Duration
+	// MeetIFrameEmbed enables SameSite=None session cookies when CookieSecure is true (Google Meet iframe).
+	MeetIFrameEmbed bool
+	// CSPFrameAncestorsExtra adds optional frame-ancestors sources (space-separated host sources).
+	CSPFrameAncestorsExtra string
 }
 
 // AuthConfig holds Google OAuth2 and session settings (from env).
@@ -120,6 +124,11 @@ func Load() Config {
 	mRunV, mRunSet := os.LookupEnv("RUN_MIGRATIONS_ON_STARTUP")
 	runMigrations := resolveRunMigrationsOnStartup(mRunSet, mRunV, databaseURL, isProd)
 
+	meetEmbed := true
+	if v, ok := os.LookupEnv("MEET_IFRAME_EMBED"); ok {
+		meetEmbed = truthy(v)
+	}
+
 	return Config{
 		Port:                   port,
 		DatabaseURL:            databaseURL,
@@ -130,6 +139,8 @@ func Load() Config {
 		MigrationsPath:         migrationsPath,
 		RunMigrationsOnStartup: runMigrations,
 		RedisRoomTTL:           roomTTL,
+		MeetIFrameEmbed:        meetEmbed,
+		CSPFrameAncestorsExtra: strings.TrimSpace(os.Getenv("CSP_FRAME_ANCESTORS_EXTRA")),
 		Auth: AuthConfig{
 			GoogleClientID:     os.Getenv("GOOGLE_OAUTH_CLIENT_ID"),
 			GoogleClientSecret: os.Getenv("GOOGLE_OAUTH_CLIENT_SECRET"),

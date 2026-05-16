@@ -33,6 +33,8 @@ type Dependencies struct {
 	HealthExposeErrorDetail bool
 	// WebRoot, if set, is the on-disk Vite `dist` folder (index + assets) for the SPA. Empty = API + WS only.
 	WebRoot string
+	// CSPFrameAncestorsExtra adds space-separated frame-ancestors sources (optional).
+	CSPFrameAncestorsExtra string
 }
 
 var upgrader = websocket.Upgrader{
@@ -47,6 +49,7 @@ var upgrader = websocket.Upgrader{
 // NewRouter wires HTTP routes and middleware.
 func NewRouter(dep Dependencies) http.Handler {
 	r := chi.NewRouter()
+	r.Use(meetEmbedMiddleware(dep.CSPFrameAncestorsExtra))
 	r.Use(normalizePathMiddleware())
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)

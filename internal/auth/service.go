@@ -16,21 +16,33 @@ import (
 
 const oauthStateCookie = "oauth_state"
 
-// Service wires Google OAuth2, JWT sessions, and profile storage.
+// Service wires Google OAuth2, gorilla session cookies, and profile storage.
 type Service struct {
-	oauth      *oauth2.Config
-	jwt        *TokenIssuer
-	profiles   *ProfileStore
-	log        zerolog.Logger
-	secure     bool
-	postLogin  string
-	enabled    bool
+	oauth     *oauth2.Config
+	sessions  *SessionManager
+	profiles  *ProfileStore
+	log       zerolog.Logger
+	secure       bool
+	cookieSameSite http.SameSite
+	postLogin    string
+	enabled      bool
 }
 
-// NewService returns nil if OAuth/JWT is not fully configured (endpoints stay public-only).
-func NewService(log zerolog.Logger, profiles *ProfileStore, clientID, clientSecret, redirectURL, jwtSecret string, jwtTTL time.Duration, postLogin string, cookieSecure bool) *Service {
-	if clientID == "" || clientSecret == "" || redirectURL == "" || jwtSecret == "" {
+// NewService returns nil if OAuth/session secret is not fully configured (endpoints stay public-only).
+func NewService(
+	log zerolog.Logger,
+	profiles *ProfileStore,
+	clientID, clientSecret, redirectURL, sessionSecret string,
+	sessionTTL time.Duration,
+	postLogin string,
+	cookieSecure bool,
+	cookieSameSite http.SameSite,
+) *Service {
+	if clientID == "" || clientSecret == "" || redirectURL == "" || sessionSecret == "" {
 		return nil
+	}
+	if sessionTTL <= 0 {
+		sessionTTL = 7 * 24 * time.Hour
 	}
 	return &Service{
 		oauth: &oauth2.Config{
@@ -44,12 +56,13 @@ func NewService(log zerolog.Logger, profiles *ProfileStore, clientID, clientSecr
 			},
 			Endpoint: google.Endpoint,
 		},
-		jwt:       NewTokenIssuer(jwtSecret, jwtTTL),
-		profiles:  profiles,
-		log:       log,
-		secure:    cookieSecure,
-		postLogin: postLogin,
-		enabled:   true,
+		sessions:       NewSessionManager(sessionSecret, sessionTTL, cookieSecure, cookieSameSite),
+		profiles:       profiles,
+		log:            log,
+		secure:         cookieSecure,
+		cookieSameSite: cookieSameSite,
+		postLogin:      postLogin,
+		enabled:        true,
 	}
 }
 
@@ -63,33 +76,24 @@ func (s *Service) Register(r chi.Router) {
 	if !s.Enabled() {
 		return
 	}
-	r.Get("/auth/google", s.handleGoogleLogin)
+	r.Get("/auth/google/login", s.handleGoogleLogin)
 	r.Get("/auth/google/callback", s.handleGoogleCallback)
-	r.Post("/auth/logout", s.handleLogout)
+	r.Get("/logout", s.handleLogout)
+	r.Post("/logout", s.handleLogout)
 	r.With(s.RequireAuth).Get("/api/me", s.handleMe)
 }
 
-// RequireAuth ensures a valid session JWT and attaches Profile to the request context.
+// RequireAuth ensures a valid session and attaches Profile to the request context.
 func (s *Service) RequireAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !s.Enabled() {
 			http.Error(w, `{"error":"authentication not configured"}`, http.StatusServiceUnavailable)
 			return
 		}
-		raw := readSessionCookie(r)
-		if raw == "" {
+		prof, ok := s.sessions.ProfileFromRequest(r, s.profiles)
+		if !ok {
 			writeJSONAuthError(w, http.StatusUnauthorized, "not authenticated")
 			return
-		}
-		claims, err := s.jwt.Parse(raw)
-		if err != nil {
-			writeJSONAuthError(w, http.StatusUnauthorized, "invalid session")
-			return
-		}
-		sub := claims.Subject
-		prof, ok := s.profiles.Get(sub)
-		if !ok {
-			prof = Profile{ID: sub, Name: claims.Name, Avatar: claims.Picture}
 		}
 		next.ServeHTTP(w, r.WithContext(withUser(r.Context(), prof)))
 	})
@@ -109,10 +113,14 @@ func (s *Service) handleGoogleLogin(w http.ResponseWriter, r *http.Request) {
 		MaxAge:   600,
 		HttpOnly: true,
 		Secure:   s.secure,
-		SameSite: http.SameSiteLaxMode,
+		SameSite: s.cookieSameSite,
 	})
-	url := s.oauth.AuthCodeURL(state, oauth2.AccessTypeOffline)
-	http.Redirect(w, r, url, http.StatusFound)
+	authURL := s.oauth.AuthCodeURL(state, oauth2.AccessTypeOffline)
+	if isEmbeddedRequest(r) {
+		writeTopLevelRedirect(w, authURL)
+		return
+	}
+	http.Redirect(w, r, authURL, http.StatusFound)
 }
 
 func (s *Service) handleGoogleCallback(w http.ResponseWriter, r *http.Request) {
@@ -128,7 +136,7 @@ func (s *Service) handleGoogleCallback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid state", http.StatusBadRequest)
 		return
 	}
-	clearOAuthStateCookie(w, s.secure)
+	s.clearOAuthStateCookie(w)
 
 	code := r.URL.Query().Get("code")
 	if code == "" {
@@ -187,30 +195,31 @@ func (s *Service) handleGoogleCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	prof := Profile{
-		ID:     googleID,
-		Name:   gu.Name,
-		Avatar: gu.Picture,
-		Email:  gu.Email,
+		GoogleID:    googleID,
+		DisplayName: gu.Name,
+		Avatar:      gu.Picture,
+		Email:       gu.Email,
 	}
 	s.profiles.Upsert(prof)
 
-	jwtStr, err := s.jwt.Mint(prof.ID, prof.Name, prof.Avatar)
-	if err != nil {
-		s.log.Error().Err(err).Msg("jwt mint failed")
+	if err := s.sessions.SaveUser(w, r, prof); err != nil {
+		s.log.Error().Err(err).Msg("session save failed")
 		http.Redirect(w, r, s.postLogin+"?login=error", http.StatusFound)
 		return
 	}
-
-	maxAge := int(s.jwt.TTL() / time.Second)
-	if maxAge < 60 {
-		maxAge = 3600
-	}
-	writeSessionCookie(w, jwtStr, maxAge, s.secure)
 	http.Redirect(w, r, s.postLogin+"?login=ok", http.StatusFound)
 }
 
 func (s *Service) handleLogout(w http.ResponseWriter, r *http.Request) {
-	clearSessionCookie(w, s.secure)
+	if err := s.sessions.Clear(w, r); err != nil {
+		s.log.Error().Err(err).Msg("session clear failed")
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	if r.Method == http.MethodGet {
+		http.Redirect(w, r, s.postLogin, http.StatusFound)
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]bool{"ok": true})
 }
@@ -221,16 +230,36 @@ func (s *Service) handleMe(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(p)
 }
 
-func clearOAuthStateCookie(w http.ResponseWriter, secure bool) {
+func (s *Service) clearOAuthStateCookie(w http.ResponseWriter) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     oauthStateCookie,
 		Value:    "",
 		Path:     "/",
 		MaxAge:   -1,
 		HttpOnly: true,
-		Secure:   secure,
-		SameSite: http.SameSiteLaxMode,
+		Secure:   s.secure,
+		SameSite: s.cookieSameSite,
 	})
+}
+
+func isEmbeddedRequest(r *http.Request) bool {
+	if r.URL.Query().Get("embedded") == "1" {
+		return true
+	}
+	switch r.Header.Get("Sec-Fetch-Dest") {
+	case "iframe", "embed":
+		return true
+	default:
+		return false
+	}
+}
+
+// writeTopLevelRedirect breaks out of an iframe so Google OAuth runs at top level (no popups).
+func writeTopLevelRedirect(w http.ResponseWriter, url string) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	escaped, _ := json.Marshal(url)
+	_, _ = w.Write([]byte(`<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Signing in…</title></head><body><script>window.top.location.replace(` + string(escaped) + `);</script><p>Redirecting to Google sign-in…</p></body></html>`))
 }
 
 func randomState() (string, error) {
