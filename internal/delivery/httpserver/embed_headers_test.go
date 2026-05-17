@@ -31,6 +31,21 @@ func TestMeetEmbedMiddleware_headers(t *testing.T) {
 	}
 }
 
+func TestMeetEmbedMiddleware_stripsDownstreamXFrameOptions(t *testing.T) {
+	h := meetEmbedMiddleware("")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if got := rec.Header().Get("X-Frame-Options"); got != "" {
+		t.Fatalf("X-Frame-Options: got %q want empty", got)
+	}
+}
+
 func TestMeetEmbedMiddleware_extraAncestors(t *testing.T) {
 	h := meetEmbedMiddleware("https://addon.example.com")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)

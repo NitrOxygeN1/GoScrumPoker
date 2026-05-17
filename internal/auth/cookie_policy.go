@@ -2,11 +2,17 @@ package auth
 
 import "net/http"
 
-// CookieSameSite picks a SameSite mode for auth cookies. Meet iframe embedding needs
-// SameSite=None with Secure cookies so sessions persist when the app is framed on meet.google.com.
-func CookieSameSite(secure, meetEmbed bool) http.SameSite {
-	if secure && meetEmbed {
-		return http.SameSiteNoneMode
+// MeetCookieOptions returns session/auth cookie flags for Google Meet iframe embedding.
+// Cross-site iframe cookies require SameSite=None and Secure.
+func MeetCookieOptions(meetEmbed, secure bool) (sameSite http.SameSite, cookieSecure bool) {
+	if meetEmbed {
+		return http.SameSiteNoneMode, true
 	}
-	return http.SameSiteLaxMode
+	return http.SameSiteLaxMode, secure
+}
+
+// CookieSameSite is kept for callers that only need the SameSite value.
+func CookieSameSite(secure, meetEmbed bool) http.SameSite {
+	sameSite, _ := MeetCookieOptions(meetEmbed, secure)
+	return sameSite
 }

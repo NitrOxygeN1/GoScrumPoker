@@ -177,6 +177,30 @@ func TestIntegration_RoomCreation(t *testing.T) {
 	}
 }
 
+func TestIntegration_WebSocketCommunication_meetEmbedHeaders(t *testing.T) {
+	srv, cleanup := newTestServer(t)
+	defer cleanup()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"/health", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.Header.Get("X-Frame-Options") != "" {
+		t.Fatalf("X-Frame-Options on health: %q", resp.Header.Get("X-Frame-Options"))
+	}
+	csp := resp.Header.Get("Content-Security-Policy")
+	if !strings.Contains(csp, "https://meet.google.com") || !strings.Contains(csp, "https://*.google.com") {
+		t.Fatalf("CSP: %q", csp)
+	}
+}
+
 func TestIntegration_WebSocketCommunication(t *testing.T) {
 	srv, cleanup := newTestServer(t)
 	defer cleanup()

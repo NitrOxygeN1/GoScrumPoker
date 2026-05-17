@@ -113,6 +113,7 @@ func main() {
 	go hub.Run()
 
 	profileStore := auth.NewProfileStore()
+	cookieSameSite, cookieSecure := auth.MeetCookieOptions(cfg.MeetIFrameEmbed, cfg.Auth.CookieSecure)
 	authSvc := auth.NewService(
 		logger,
 		profileStore,
@@ -122,8 +123,8 @@ func main() {
 		cfg.Auth.JWTSecret,
 		cfg.Auth.JWTExpires,
 		cfg.Auth.PostLoginRedirect,
-		cfg.Auth.CookieSecure,
-		auth.CookieSameSite(cfg.Auth.CookieSecure, cfg.MeetIFrameEmbed),
+		cookieSecure,
+		cookieSameSite,
 	)
 	if authSvc == nil {
 		logger.Warn().Msg("Google OAuth disabled: set GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET, OAUTH_REDIRECT_URL, JWT_SECRET")

@@ -31,6 +31,7 @@ export function useRoomSocket({ roomId, displayName, enabled, onServerMessage })
     const initialName = (nameForOpenRef.current || "").trim();
     if (!initialName) return;
 
+    // Same host as the page (including inside a Google Meet iframe); wss on HTTPS deploys.
     const scheme = window.location.protocol === "https:" ? "wss" : "ws";
     const ws = new WebSocket(
       `${scheme}://${window.location.host}/ws/${encodeURIComponent(roomId)}`

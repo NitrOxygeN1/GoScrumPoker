@@ -37,6 +37,8 @@ type Dependencies struct {
 	CSPFrameAncestorsExtra string
 }
 
+// WebSocket upgrades run through meetEmbedMiddleware; the iframe document origin is the
+// app host (same as window.location.host), so permissive CheckOrigin keeps Meet embeds working.
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,

@@ -15,6 +15,7 @@ type SessionManager struct {
 }
 
 // NewSessionManager creates a cookie session store. secret must be non-empty.
+// For Meet iframe embed, pass sameSite=http.SameSiteNoneMode and secure=true.
 func NewSessionManager(secret string, maxAge time.Duration, secure bool, sameSite http.SameSite) *SessionManager {
 	if sameSite == 0 {
 		sameSite = http.SameSiteLaxMode
@@ -30,6 +31,12 @@ func NewSessionManager(secret string, maxAge time.Duration, secure bool, sameSit
 	return &SessionManager{store: store}
 }
 
+func (m *SessionManager) applyOptions(sess *sessions.Session) {
+	if m.store.Options != nil {
+		sess.Options = m.store.Options
+	}
+}
+
 // Get returns the session for the request (may be new/empty).
 func (m *SessionManager) Get(r *http.Request) (*sessions.Session, error) {
 	return m.store.Get(r, sessionName)
@@ -41,6 +48,7 @@ func (m *SessionManager) SaveUser(w http.ResponseWriter, r *http.Request, p Prof
 	if err != nil {
 		return err
 	}
+	m.applyOptions(sess)
 	sess.Values["google_id"] = p.GoogleID
 	sess.Values["email"] = p.Email
 	sess.Values["display_name"] = p.DisplayName
@@ -54,6 +62,7 @@ func (m *SessionManager) Clear(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
+	m.applyOptions(sess)
 	sess.Options.MaxAge = -1
 	for k := range sess.Values {
 		delete(sess.Values, k)

@@ -35,7 +35,7 @@ type Config struct {
 	RunMigrationsOnStartup bool
 	Auth                   AuthConfig
 	RedisRoomTTL           time.Duration
-	// MeetIFrameEmbed enables SameSite=None session cookies when CookieSecure is true (Google Meet iframe).
+	// MeetIFrameEmbed sets SameSite=None; Secure on auth cookies and is on by default (Google Meet iframe).
 	MeetIFrameEmbed bool
 	// CSPFrameAncestorsExtra adds optional frame-ancestors sources (space-separated host sources).
 	CSPFrameAncestorsExtra string
