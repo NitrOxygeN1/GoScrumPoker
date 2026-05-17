@@ -38,7 +38,8 @@ var staticHTMLPages = map[string]string{
 	"privacy": "privacy.html",
 	"terms":   "terms.html",
 	"support": "support.html",
-	"help":    "help.html",
+	"help":          "help.html",
+	"draft-opt-out": "draft-opt-out.html",
 }
 
 // newStaticHandler serves the Vite dist. HTML is served with http.ServeContent over an

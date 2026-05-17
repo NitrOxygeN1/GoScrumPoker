@@ -9,6 +9,7 @@ const staticPageRewrites = {
   "/terms": "/terms.html",
   "/support": "/support.html",
   "/help": "/help.html",
+  "/draft-opt-out": "/draft-opt-out.html",
 };
 
 /** Serves `index.html` for client routes like `/<room-uuid>` in dev and `vite preview`. */
@@ -32,7 +33,8 @@ function installSpaFallback() {
           p === "/privacy" ||
           p === "/terms" ||
           p === "/support" ||
-          p === "/help"
+          p === "/help" ||
+          p === "/draft-opt-out"
         ) {
           return next();
         }

@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="How to leave GoScrumPoker beta testing, uninstall the Google Meet add-on, and revoke Google account access."
+    />
+    <title>Beta opt-out — GoScrumPoker</title>
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/branding/favicon-32.png" />
+    <link rel="stylesheet" href="/static/legal.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="site-header-inner">
+        <a class="site-logo" href="/">
+          <img src="/static/branding/logo-48.png" width="28" height="28" alt="" />
+          GoScrumPoker
+        </a>
+        <nav class="site-nav" aria-label="Site">
+          <a href="/privacy">Privacy</a>
+          <a href="/terms">Terms</a>
+          <a href="/support">Support</a>
+          <a href="/help">Help</a>
+          <a href="/draft-opt-out" aria-current="page">Opt-out</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <h1>Beta testing opt-out</h1>
+      <p class="lead">
+        GoScrumPoker is beta software. You can stop testing at any time using the steps below.
+      </p>
+
+      <article>
+        <div class="panel">
+          <p>
+            After you complete these steps, we no longer receive new data from your use of the app.
+            Data already stored may remain until it is deleted by the operator or expires; see the
+            <a href="/privacy">Privacy Policy</a> for details.
+          </p>
+        </div>
+
+        <h2>1. Leave beta testing</h2>
+        <p>If you joined as a tester for the Google Meet add-on or OAuth draft app:</p>
+        <ol>
+          <li>
+            <strong>Stop opening the add-on</strong> — you do not need to take further action in
+            Meet if you only want to stop using it during calls.
+          </li>
+          <li>
+            <strong>Remove yourself as a test user</strong> (if applicable) — the app operator may
+            have added your Google account under
+            <em>Google Cloud Console → APIs &amp; Services → OAuth consent screen → Test users</em>.
+            Ask the operator to remove your email, or decline any invite to test.
+          </li>
+          <li>
+            <strong>Leave a tester group</strong> — if access was granted via a Google Group or
+            Workspace test program, leave that group or ask the admin to remove you.
+          </li>
+          <li>
+            <strong>Uninstall the Meet add-on</strong> and <strong>revoke OAuth access</strong> using
+            the sections below so the app cannot access your Google account.
+          </li>
+        </ol>
+        <p class="muted">
+          Questions? See <a href="/support">Support</a>.
+        </p>
+
+        <h2>2. Uninstall the Google Meet add-on</h2>
+        <p>How to remove Go Scrum Poker from Google Meet depends on how it was installed.</p>
+
+        <h3>During a meeting (most testers)</h3>
+        <ol>
+          <li>Join or start a Google Meet call.</li>
+          <li>
+            Open <strong>Activities</strong> (square grid icon) or <strong>Apps</strong> in the
+            meeting controls.
+          </li>
+          <li>Find <strong>Go Scrum Poker</strong> (or the name shown in the add-on list).</li>
+          <li>
+            Close the add-on side panel, then open add-on settings if shown and choose
+            <strong>Remove</strong>, <strong>Uninstall</strong>, or <strong>Don't show again</strong>
+            (wording varies by Meet version).
+          </li>
+        </ol>
+
+        <h3>From your Google Account (installed add-ons)</h3>
+        <ol>
+          <li>
+            Open
+            <a href="https://myaccount.google.com/permissions" rel="noopener noreferrer"
+              >Google Account → Third-party apps with account access</a
+            >.
+          </li>
+          <li>Look for entries related to Go Scrum Poker or GoScrumPoker.</li>
+          <li>Select the app and choose <strong>Remove access</strong> (this also revokes OAuth; see below).</li>
+        </ol>
+
+        <h3>Workspace users (company-managed Meet)</h3>
+        <p>
+          If your organization installed the add-on for everyone, you may not be able to uninstall it
+          yourself. Contact your Google Workspace administrator and ask them to remove the Go Scrum
+          Poker Meet add-on from your domain or OU.
+        </p>
+
+        <h2>3. Revoke OAuth permissions</h2>
+        <p>
+          Revoking access removes the app's permission to read your Google profile (name, email,
+          avatar) used for sign-in.
+        </p>
+        <ol>
+          <li>
+            Go to
+            <a href="https://myaccount.google.com/permissions" rel="noopener noreferrer"
+              >myaccount.google.com/permissions</a
+            >.
+          </li>
+          <li>Under <strong>Third-party apps with account access</strong>, select <strong>Go Scrum Poker</strong> or the client name shown for this app.</li>
+          <li>Click <strong>Remove access</strong> and confirm.</li>
+        </ol>
+        <p>
+          You can also sign out in the app via <strong>Logout</strong> if that option is available
+          at <code>/logout</code> on the deployment you use. Signing out clears the session cookie but
+          does not by itself revoke Google OAuth — use Google Account permissions for a full revoke.
+        </p>
+
+        <h2>4. Clear local browser data (optional)</h2>
+        <p>
+          The planning-poker UI may store a display name or room preference in your browser
+          (<code>sessionStorage</code> / <code>localStorage</code>). To clear it:
+        </p>
+        <ul>
+          <li>Clear site data for <code>goscrumpoker.onrender.com</code> (or your deployment host) in browser settings, or</li>
+          <li>Use a private/incognito window when trying the app again later.</li>
+        </ul>
+
+        <h2>Related policies</h2>
+        <ul>
+          <li><a href="/privacy">Privacy Policy</a></li>
+          <li><a href="/terms">Terms of Service (beta)</a></li>
+          <li><a href="/help">Help</a></li>
+        </ul>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <p>&copy; GoScrumPoker · <a href="/">App</a></p>
+    </footer>
+  </body>
+</html>
