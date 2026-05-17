@@ -33,6 +33,14 @@ func normalizePathMiddleware() func(next http.Handler) http.Handler {
 	}
 }
 
+// staticHTMLPages maps clean URL paths (no extension) to HTML files in the web root.
+var staticHTMLPages = map[string]string{
+	"privacy": "privacy.html",
+	"terms":   "terms.html",
+	"support": "support.html",
+	"help":    "help.html",
+}
+
 // newStaticHandler serves the Vite dist. HTML is served with http.ServeContent over an
 // in-memory copy of index.html, not http.ServeFile, so the standard library never
 // issues redirects that resolve to a scheme-relative "Location: //" in the address bar.
@@ -75,8 +83,12 @@ func newStaticHandler(webRoot string) http.Handler {
 			serveIndex(w, r)
 			return
 		}
-		if strings.HasPrefix(up, "/assets/") {
+		if strings.HasPrefix(up, "/assets/") || strings.HasPrefix(up, "/static/") {
 			serveUnderStaticRoot(w, r, abs, rel)
+			return
+		}
+		if file, ok := staticHTMLPages[rel]; ok {
+			serveUnderStaticRoot(w, r, abs, file)
 			return
 		}
 		if path.Ext(rel) != "" {

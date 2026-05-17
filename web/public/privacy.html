@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Privacy Policy for GoScrumPoker, including Google Sign-In." />
+    <title>Privacy Policy — GoScrumPoker</title>
+    <link rel="stylesheet" href="/static/legal.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="site-header-inner">
+        <a class="site-logo" href="/">GoScrumPoker</a>
+        <nav class="site-nav" aria-label="Site">
+          <a href="/privacy" aria-current="page">Privacy</a>
+          <a href="/terms">Terms</a>
+          <a href="/support">Support</a>
+          <a href="/help">Help</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <h1>Privacy Policy</h1>
+      <p class="lead">Last updated: May 16, 2026</p>
+
+      <article>
+        <p>
+          This Privacy Policy describes how <strong>GoScrumPoker</strong> (“we”, “us”, or “the
+          Service”) collects, uses, and protects information when you use our planning-poker web
+          application, including when you sign in with Google.
+        </p>
+
+        <h2>1. Who we are</h2>
+        <p>
+          GoScrumPoker is a real-time Scrum Poker tool for agile teams. The Service is provided
+          as hosted software; the operator is the entity that deploys and maintains your instance
+          (for example, the project maintainer listed on the deployment or OAuth consent screen).
+        </p>
+
+        <h2>2. Information we collect</h2>
+
+        <h3>2.1 Google Sign-In (OAuth)</h3>
+        <p>
+          If you choose to sign in with Google, we use Google OAuth 2.0 and receive profile
+          information from Google that you authorize, typically including:
+        </p>
+        <ul>
+          <li>Google account ID (subject identifier)</li>
+          <li>Email address</li>
+          <li>Display name</li>
+          <li>Profile picture URL</li>
+        </ul>
+        <p>
+          We do not receive your Google password. Google's use of your data is governed by
+          <a href="https://policies.google.com/privacy" rel="noopener noreferrer">Google's Privacy Policy</a>.
+        </p>
+
+        <h3>2.2 Room and session data</h3>
+        <p>When you use poker rooms without signing in, we may process:</p>
+        <ul>
+          <li>A display name you enter for the room</li>
+          <li>A random client identifier stored in your browser (<code>sessionStorage</code>)</li>
+          <li>Vote values and room state needed to run the session</li>
+        </ul>
+
+        <h3>2.3 Technical data</h3>
+        <p>
+          Our servers may log standard request metadata (such as IP address, user agent, timestamps,
+          and error details) for security, reliability, and debugging. Logs are retained only as long
+          as needed for those purposes.
+        </p>
+
+        <h2>3. How we use information</h2>
+        <ul>
+          <li>Authenticate you and maintain your signed-in session</li>
+          <li>Display your name and avatar to you (and where applicable, in the product UI)</li>
+          <li>Operate real-time rooms, votes, and WebSocket synchronization</li>
+          <li>Protect the Service against abuse and diagnose failures</li>
+          <li>Comply with legal obligations</li>
+        </ul>
+        <p>We do not sell your personal information.</p>
+
+        <h2>4. Legal bases (EEA/UK users)</h2>
+        <p>
+          Where applicable, we process personal data on the basis of contract performance (providing
+          the Service), legitimate interests (security and improvement), and consent (where you
+          initiate Google Sign-In).
+        </p>
+
+        <h2>5. Storage and retention</h2>
+        <p>
+          Signed-in profile data may be stored in server memory or a database configured by the
+          operator. Room data may be stored in memory, Redis, or PostgreSQL depending on deployment.
+          Retention periods depend on configuration; ephemeral deployments may discard data on restart.
+          Session cookies expire according to server settings (typically up to seven days).
+        </p>
+
+        <h2>6. Cookies</h2>
+        <p>We use cookies for:</p>
+        <ul>
+          <li><strong>Session</strong> — keeps you signed in after Google authentication (HttpOnly, Secure in production)</li>
+          <li><strong>OAuth state</strong> — short-lived cookie used only during the Google login flow</li>
+        </ul>
+        <p>
+          When the app is embedded (for example, in Google Meet), session cookies may use
+          <code>SameSite=None; Secure</code> so authentication works inside an iframe.
+        </p>
+
+        <h2>7. Third parties</h2>
+        <ul>
+          <li><strong>Google</strong> — OAuth and user profile APIs when you sign in with Google</li>
+          <li><strong>Hosting providers</strong> — infrastructure used to run the Service (e.g. cloud hosting)</li>
+        </ul>
+        <p>
+          We do not share personal data with advertisers. Data is disclosed only when required by law
+          or to protect rights and safety.
+        </p>
+
+        <h2>8. Security</h2>
+        <p>
+          We use HTTPS in production, signed session cookies, and industry-standard practices for
+          OAuth. No method of transmission or storage is 100% secure; use the Service at your own risk
+          appropriate to your organization's requirements.
+        </p>
+
+        <h2>9. Your rights</h2>
+        <p>
+          Depending on your location, you may have rights to access, correct, delete, or restrict
+          processing of your personal data, and to withdraw consent. To exercise these rights, contact
+          us via the <a href="/support">Support</a> page. You may also revoke the app's access in your
+          <a href="https://myaccount.google.com/permissions" rel="noopener noreferrer">Google Account permissions</a>.
+        </p>
+
+        <h2>10. Children</h2>
+        <p>
+          The Service is not directed at children under 13 (or 16 in the EEA). We do not knowingly
+          collect personal data from children.
+        </p>
+
+        <h2>11. International transfers</h2>
+        <p>
+          Data may be processed in countries where our hosting providers operate. Appropriate safeguards
+          may apply depending on your jurisdiction and provider agreements.
+        </p>
+
+        <h2>12. Changes</h2>
+        <p>
+          We may update this policy from time to time. The “Last updated” date at the top will change
+          when we do. Continued use after changes constitutes acceptance of the revised policy.
+        </p>
+
+        <h2>13. Contact</h2>
+        <p>
+          Questions about this policy: see our <a href="/support">Support</a> page.
+        </p>
+      </article>
+    </main>
+
+    <footer class="site-footer">
+      <p>&copy; GoScrumPoker · <a href="/">App</a></p>
+    </footer>
+  </body>
+</html>
