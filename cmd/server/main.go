@@ -66,11 +66,23 @@ func main() {
 			os.Exit(1)
 		}
 		cancel2()
-		roomRepo = postgres.NewPostgresRoomRepository(pool)
+		pgRoomRepo := postgres.NewPostgresRoomRepository(pool)
+		roomRepo = pgRoomRepo
 		voteRepo = postgres.NewPostgresVoteRepository(pool)
 		dbBackend = "postgres"
 		dbPing = pool.Ping
 		logger.Info().Str("backend", "postgres").Msg("room storage configured")
+
+		// Surface schema drift loudly at startup instead of returning opaque 500s
+		// to Meet add-on clients later. Non-fatal: standalone (non-Meet) flows
+		// still work even when the Meet column is missing.
+		verifyCtx, verifyCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		if err := pgRoomRepo.VerifyMeetSchema(verifyCtx); err != nil {
+			logger.Error().Err(err).Msg("Meet add-on schema check failed; POST /rooms/by-meet will return 500 until migrations are applied")
+		} else {
+			logger.Info().Msg("Meet add-on schema OK (rooms.meet_meeting_id, room_participants.avatar_url present)")
+		}
+		verifyCancel()
 	} else if cfg.RedisURL != "" {
 		opt, err := redis.ParseURL(cfg.RedisURL)
 		if err != nil {

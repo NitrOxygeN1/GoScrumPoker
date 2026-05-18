@@ -14,27 +14,40 @@
  */
 let cached = null;
 
+async function loadProfile() {
+  try {
+    // credentials:"include" is critical: inside a Meet iframe, the cookie is
+    // third-party and only sent when the request is explicitly cross-origin.
+    const res = await fetch("/api/me", {
+      credentials: "include",
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+    });
+    if (!res.ok) return { signedIn: false };
+    const data = await res.json();
+    const displayName = String(data?.display_name || "").trim();
+    const avatar = String(data?.avatar || "").trim();
+    const email = String(data?.email || "").trim();
+    if (!displayName && !avatar && !email) return { signedIn: false };
+    return { signedIn: true, displayName, avatar, email };
+  } catch {
+    return { signedIn: false };
+  }
+}
+
 export function fetchCurrentProfile() {
   if (cached) return cached;
-  cached = (async () => {
-    try {
-      // credentials:"include" is critical: inside a Meet iframe, the cookie is
-      // third-party and only sent when the request is explicitly cross-origin.
-      const res = await fetch("/api/me", {
-        credentials: "include",
-        headers: { Accept: "application/json" },
-      });
-      if (!res.ok) return { signedIn: false };
-      const data = await res.json();
-      const displayName = String(data?.display_name || "").trim();
-      const avatar = String(data?.avatar || "").trim();
-      const email = String(data?.email || "").trim();
-      if (!displayName && !avatar && !email) return { signedIn: false };
-      return { signedIn: true, displayName, avatar, email };
-    } catch {
-      return { signedIn: false };
-    }
-  })();
+  cached = loadProfile();
+  return cached;
+}
+
+/**
+ * Re-reads /api/me, bypassing the in-process cache. Used right after the
+ * Google sign-in popup completes so the UI flips from anonymous → signed-in
+ * without a page reload.
+ */
+export function refetchProfile() {
+  cached = loadProfile();
   return cached;
 }
 

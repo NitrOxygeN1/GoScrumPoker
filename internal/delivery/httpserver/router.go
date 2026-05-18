@@ -184,8 +184,13 @@ func roomForMeet(dep Dependencies) http.HandlerFunc {
 
 		id, created, err := dep.Rooms.GetOrCreateRoomForMeet(r.Context(), key)
 		if err != nil {
-			lg.Error().Err(err).Str("meet_key", key).Msg("get or create meet room failed")
-			writeJSONError(w, http.StatusInternalServerError, "could not bind meeting to a room")
+			lg.Error().Err(err).Str("meet_key", key).Str("db_backend", dep.DBBackend).Msg("get or create meet room failed")
+			// Surface the underlying reason in the JSON body. This endpoint only
+			// reports config/schema/storage failures (no user data leaks), and
+			// without it server-side issues are invisible to operators reading
+			// only the browser response (e.g. inside a Meet add-on iframe).
+			writeJSONErrorWithDetail(w, http.StatusInternalServerError,
+				"could not bind meeting to a room", err.Error(), dep.DBBackend)
 			return
 		}
 		lg.Info().Str("room_id", id).Str("meet_key", key).Bool("created", created).Msg("meet room resolved")
@@ -259,4 +264,21 @@ func writeJSONError(w http.ResponseWriter, status int, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(map[string]string{"error": message})
+}
+
+// writeJSONErrorWithDetail emits a 5xx-friendly envelope that callers can paste
+// into a bug report. `detail` is intended for operational error strings
+// (e.g. `column "meet_meeting_id" does not exist (SQLSTATE 42703)`); avoid
+// passing anything user-controlled here.
+func writeJSONErrorWithDetail(w http.ResponseWriter, status int, message, detail, backend string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	body := map[string]string{"error": message}
+	if detail != "" {
+		body["detail"] = detail
+	}
+	if backend != "" {
+		body["backend"] = backend
+	}
+	_ = json.NewEncoder(w).Encode(body)
 }

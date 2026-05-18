@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRoomSocket } from "./hooks/useRoomSocket.js";
+import { useGoogleSignIn } from "./hooks/useGoogleSignIn.js";
 import { readDisplayName, saveDisplayName } from "./displayNameStorage.js";
 import { readLastRoomId, saveLastRoomId } from "./lastRoomStorage.js";
 import { computeVoteRecommendation } from "./voteRecommendation.js";
@@ -180,6 +181,71 @@ function IconEdit() {
   );
 }
 
+function GoogleGlyph() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 18 18"
+      aria-hidden
+      focusable="false"
+    >
+      <path
+        fill="#EA4335"
+        d="M9 3.48c1.69 0 2.83.73 3.48 1.34l2.54-2.48C13.46.89 11.43 0 9 0 5.48 0 2.44 2.02.96 4.96l2.91 2.26C4.6 5.05 6.62 3.48 9 3.48z"
+      />
+      <path
+        fill="#4285F4"
+        d="M17.64 9.2c0-.74-.06-1.28-.19-1.84H9v3.34h4.96c-.1.83-.64 2.08-1.84 2.92l2.84 2.2c1.7-1.57 2.68-3.88 2.68-6.62z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M3.88 10.78A5.54 5.54 0 0 1 3.58 9c0-.62.11-1.22.29-1.78L.96 4.96A9 9 0 0 0 0 9c0 1.45.35 2.82.96 4.04l2.92-2.26z"
+      />
+      <path
+        fill="#34A853"
+        d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.84-2.2c-.76.53-1.78.9-3.12.9-2.38 0-4.4-1.57-5.12-3.74L.97 13.04C2.45 15.98 5.48 18 9 18z"
+      />
+    </svg>
+  );
+}
+
+function SignInPanel({ onSignIn, signingIn, error, meetBindError, meetRoomId }) {
+  return (
+    <div className="panel signin-panel">
+      <div className="signin-lead">
+        <strong>Continue with Google</strong>
+        <p className="muted signin-help">
+          {meetRoomId
+            ? "Sign in so this meeting's Scrum Poker room shows your name and profile picture automatically."
+            : "We'll use your Google name and profile picture so other participants can recognize you."}
+        </p>
+      </div>
+      <div className="row signin-actions">
+        <button
+          type="button"
+          className="signin-btn"
+          onClick={onSignIn}
+          disabled={signingIn}
+        >
+          <GoogleGlyph />
+          <span>{signingIn ? "Waiting for Google…" : "Sign in with Google"}</span>
+        </button>
+      </div>
+      {error && (
+        <p className="signin-error" role="alert">
+          {error}
+        </p>
+      )}
+      {!error && meetBindError && (
+        <p className="signin-error" role="alert">
+          Could not bind this meeting to a room: {meetBindError}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function initialsFromName(name) {
   const trimmed = String(name || "").trim();
   if (!trimmed) return "?";
@@ -296,34 +362,54 @@ export default function App() {
     }
   }, []);
 
-  // Apply the Google profile (name + avatar) for both standalone and Meet runs.
-  // We respect a non-empty display name already in storage (the user may have
-  // renamed themselves) and only fill in defaults when there is none.
+  const {
+    profile: googleProfile,
+    signIn: signInWithGoogle,
+    signingIn,
+    error: signInError,
+    setProfile: setGoogleProfile,
+  } = useGoogleSignIn();
+
+  // Initial /api/me load. The sign-in hook's polling takes over after the
+  // user clicks "Sign in with Google"; before that, we just need to know
+  // whether there's already an active session cookie.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       const prof = await fetchCurrentProfile();
-      if (cancelled || !prof || !prof.signedIn) return;
-      if (prof.avatar) setUserAvatar((prev) => prev || prof.avatar);
-      if (prof.displayName) {
-        setDisplayName((prev) => {
-          const existing = (prev || "").trim();
-          return existing ? prev : prof.displayName;
-        });
-      }
+      if (cancelled) return;
+      if (prof?.signedIn) setGoogleProfile(prof);
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [setGoogleProfile]);
 
-  // When the app is launched as a Meet add-on, bind to a Scrum Poker room that
-  // tracks the current meeting and jump straight into it. Manual lobby / room
-  // links still win: a path like `/<uuid>` keeps its existing auto-join flow.
+  // Apply Google name + avatar whenever the profile flips to signed-in,
+  // whether that comes from the initial /api/me load or from the popup
+  // sign-in flow. Never overwrite a non-empty stored display name.
+  useEffect(() => {
+    if (!googleProfile?.signedIn) return;
+    if (googleProfile.avatar) {
+      setUserAvatar((prev) => prev || googleProfile.avatar);
+    }
+    if (googleProfile.displayName) {
+      setDisplayName((prev) => {
+        const existing = (prev || "").trim();
+        return existing ? prev : googleProfile.displayName;
+      });
+    }
+  }, [googleProfile]);
+
+  // Step 1: resolve the Scrum Poker room that backs this Meet call. Runs once
+  // per mount; idempotent server-side, so a refresh inside the same call
+  // reuses the previous binding.
+  const [meetRoomId, setMeetRoomId] = useState("");
+  const [meetBindError, setMeetBindError] = useState("");
   const meetAutoJoinTried = useRef(false);
   useEffect(() => {
     if (meetAutoJoinTried.current) return;
-    if (joinFromRoomLink) return; // explicit room link beats meeting auto-binding
+    if (joinFromRoomLink) return; // explicit /<uuid> link beats meeting binding
     meetAutoJoinTried.current = true;
 
     let cancelled = false;
@@ -336,12 +422,13 @@ export default function App() {
         return;
       }
 
-      setMeetJoining(true);
       try {
-        const profPromise = fetchCurrentProfile();
         const res = await fetch("/rooms/by-meet", {
           method: "POST",
-          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
           credentials: "include",
           body: JSON.stringify({
             meeting_id: info.meetingId || "",
@@ -349,40 +436,30 @@ export default function App() {
           }),
         });
         if (!res.ok) {
-          console.warn("[meet] /rooms/by-meet failed", res.status);
+          let detail = "";
+          try {
+            const body = await res.json();
+            detail = body?.detail || body?.error || "";
+          } catch {
+            /* not JSON */
+          }
+          console.warn("[meet] /rooms/by-meet failed", res.status, detail);
+          if (!cancelled) {
+            setMeetBindError(detail || `request failed (${res.status})`);
+            setMeetJoining(false);
+          }
           return;
         }
         const data = await res.json();
         if (cancelled || !data?.id) return;
-
-        const prof = await profPromise;
-        const nameFromProfile = prof?.displayName ? String(prof.displayName) : "";
-        const avatarFromProfile = prof?.avatar ? String(prof.avatar) : "";
-        const stored = readDisplayName().trim();
-        const finalName = stored || nameFromProfile;
-
-        if (!finalName) {
-          // No identity available — fall back to the standard lobby so the user
-          // can type a name (their next visit will then auto-join in one click).
-          // Stash the room id so the lobby's "Join room" still goes to it.
-          setRoomIdInput(data.id);
-          saveLastRoomId(data.id);
-          return;
-        }
-        setDisplayName(finalName);
-        saveDisplayName(finalName);
-        if (avatarFromProfile) setUserAvatar(avatarFromProfile);
-
+        setMeetRoomId(data.id);
         saveLastRoomId(data.id);
-        setActiveRoomId(data.id);
-        prevRevealedRef.current = false;
-        setRoomState(initialRoomState());
-        setSelectedCard(null);
-        setPhase("room");
       } catch (e) {
         console.warn("[meet] auto-join failed", e?.message || e);
-      } finally {
-        if (!cancelled) setMeetJoining(false);
+        if (!cancelled) {
+          setMeetBindError(e?.message || "network error");
+          setMeetJoining(false);
+        }
       }
     })();
 
@@ -391,6 +468,30 @@ export default function App() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Step 2: once we have BOTH the Meet-bound room id AND a display name (from
+  // local storage, Google profile, or a manual entry), enter the room. This
+  // also fires after the user completes the sign-in popup.
+  useEffect(() => {
+    if (phase !== "lobby") return;
+    if (!meetRoomId) return;
+    const n = (displayName || "").trim();
+    if (!n) {
+      // Surface the room id in the lobby input so a "Join room" click still
+      // works even if the user never signs in.
+      setRoomIdInput((prev) => prev || meetRoomId);
+      setMeetJoining(false);
+      return;
+    }
+    saveDisplayName(n);
+    saveLastRoomId(meetRoomId);
+    setActiveRoomId(meetRoomId);
+    prevRevealedRef.current = false;
+    setRoomState(initialRoomState());
+    setSelectedCard(null);
+    setPhase("room");
+    setMeetJoining(false);
+  }, [meetRoomId, displayName, phase]);
 
   useEffect(() => {
     if (phase !== "room" || !activeRoomId) return;
@@ -840,6 +941,19 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {phase === "lobby" &&
+        !joinFromRoomLink &&
+        !meetJoining &&
+        !googleProfile.signedIn && (
+          <SignInPanel
+            onSignIn={signInWithGoogle}
+            signingIn={signingIn}
+            error={signInError}
+            meetBindError={meetBindError}
+            meetRoomId={meetRoomId}
+          />
+        )}
 
       {phase === "lobby" && !joinFromRoomLink && !meetJoining && (
         <div className="panel">

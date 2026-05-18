@@ -28,6 +28,37 @@ func (r *PostgresRoomRepository) Close() error {
 	return nil
 }
 
+// VerifyMeetSchema confirms migration 000002 has been applied. Returns a
+// descriptive error when the Meet binding column or avatar column is missing;
+// callers can use the result to log a clear "run migrations" warning rather
+// than failing at request time with an opaque SQLSTATE 42703.
+func (r *PostgresRoomRepository) VerifyMeetSchema(ctx context.Context) error {
+	var ok bool
+	if err := r.pool.QueryRow(ctx,
+		`SELECT EXISTS (
+			SELECT 1 FROM information_schema.columns
+			WHERE table_name = 'rooms' AND column_name = 'meet_meeting_id'
+		)`,
+	).Scan(&ok); err != nil {
+		return fmt.Errorf("verify meet schema: %w", err)
+	}
+	if !ok {
+		return errors.New("rooms.meet_meeting_id is missing — run migration 000002_meet_and_avatar (RUN_MIGRATIONS_ON_STARTUP=true) before using the Meet add-on")
+	}
+	if err := r.pool.QueryRow(ctx,
+		`SELECT EXISTS (
+			SELECT 1 FROM information_schema.columns
+			WHERE table_name = 'room_participants' AND column_name = 'avatar_url'
+		)`,
+	).Scan(&ok); err != nil {
+		return fmt.Errorf("verify avatar schema: %w", err)
+	}
+	if !ok {
+		return errors.New("room_participants.avatar_url is missing — run migration 000002_meet_and_avatar (RUN_MIGRATIONS_ON_STARTUP=true) before joining a Meet room")
+	}
+	return nil
+}
+
 // CreateRoom implements repository.RoomRepository.
 func (r *PostgresRoomRepository) CreateRoom(ctx context.Context) (*domain.Room, error) {
 	id := uuid.New()
