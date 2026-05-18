@@ -35,11 +35,12 @@ func normalizePathMiddleware() func(next http.Handler) http.Handler {
 
 // staticHTMLPages maps clean URL paths (no extension) to HTML files in the web root.
 var staticHTMLPages = map[string]string{
-	"privacy": "privacy.html",
-	"terms":   "terms.html",
-	"support": "support.html",
+	"privacy":       "privacy.html",
+	"terms":         "terms.html",
+	"support":       "support.html",
 	"help":          "help.html",
 	"draft-opt-out": "draft-opt-out.html",
+	"meet-debug":    "meet-debug.html",
 }
 
 // newStaticHandler serves the Vite dist. HTML is served with http.ServeContent over an

@@ -10,6 +10,7 @@ const staticPageRewrites = {
   "/support": "/support.html",
   "/help": "/help.html",
   "/draft-opt-out": "/draft-opt-out.html",
+  "/meet-debug": "/meet-debug.html",
 };
 
 /** Serves `index.html` for client routes like `/<room-uuid>` in dev and `vite preview`. */
@@ -34,12 +35,22 @@ function installSpaFallback() {
           p === "/terms" ||
           p === "/support" ||
           p === "/help" ||
-          p === "/draft-opt-out"
+          p === "/draft-opt-out" ||
+          p === "/meet-debug"
         ) {
           return next();
         }
         if (p === "/") return next();
-        if (p.startsWith("/rooms") || p.startsWith("/ws")) return next();
+        if (
+          p.startsWith("/rooms") ||
+          p.startsWith("/ws") ||
+          p.startsWith("/auth/") ||
+          p.startsWith("/api/") ||
+          p === "/health" ||
+          p === "/logout"
+        ) {
+          return next();
+        }
         if (/\.[a-zA-Z0-9][\w+.-]*$/.test(p.split("/").pop() || "")) {
           return next();
         }
@@ -67,6 +78,10 @@ export default defineConfig({
     proxy: {
       "/rooms": { target: backend, changeOrigin: true },
       "/ws": { target: backend, ws: true, changeOrigin: true },
+      "/health": { target: backend, changeOrigin: true },
+      "/api": { target: backend, changeOrigin: true },
+      "/auth": { target: backend, changeOrigin: true },
+      "/logout": { target: backend, changeOrigin: true },
     },
   },
 });
