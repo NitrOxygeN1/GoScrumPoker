@@ -332,16 +332,27 @@
 
           var topAccess = "n/a";
           var topStatus = "info";
+          var topLabel = "n/a";
+          var topReadable = false;
           try {
             void window.top.location.href;
+            topReadable = true;
             topAccess = "same-origin (readable)";
-            topStatus = inIframe ? "warn" : "ok";
           } catch (e) {
             topAccess = "blocked: " + e.message;
-            topStatus = inIframe ? "ok" : "warn";
+          }
+          if (!inIframe) {
+            topStatus = "info";
+            topLabel = "top";
+          } else if (!topReadable) {
+            topStatus = "ok";
+            topLabel = "cross-origin";
+          } else {
+            topStatus = "warn";
+            topLabel = "same-origin (simulator)";
           }
           set("v-top-access", topAccess);
-          badge("s-top-access", topStatus, inIframe ? "expected" : "n/a");
+          badge("s-top-access", topStatus, topLabel);
           record("topAccess", topAccess);
 
           var ref = document.referrer || "";
