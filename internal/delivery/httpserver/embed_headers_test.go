@@ -20,12 +20,9 @@ func TestMeetEmbedMiddleware_headers(t *testing.T) {
 		t.Fatalf("X-Frame-Options: got %q want empty", got)
 	}
 	csp := rec.Header().Get("Content-Security-Policy")
-	want := "frame-ancestors https://meet.google.com https://*.google.com;"
+	want := "frame-ancestors 'self' https://meet.google.com https://*.google.com;"
 	if csp != want {
 		t.Fatalf("CSP: got %q want %q", csp, want)
-	}
-	if strings.Contains(csp, "'self'") {
-		t.Fatalf("CSP must not include 'self': %q", csp)
 	}
 	if strings.Contains(csp, "frame-src") {
 		t.Fatalf("CSP must not include frame-src: %q", csp)
@@ -76,8 +73,23 @@ func TestMeetEmbedMiddleware_overridesDownstreamFrameSrcNone(t *testing.T) {
 	if strings.Contains(csp, "frame-src 'none'") {
 		t.Fatalf("CSP must not contain frame-src 'none': %q", csp)
 	}
-	if !strings.Contains(csp, "frame-ancestors https://meet.google.com https://*.google.com") {
+	if !strings.Contains(csp, "https://meet.google.com") || !strings.Contains(csp, "https://*.google.com") {
 		t.Fatalf("CSP missing Meet frame-ancestors after override: %q", csp)
+	}
+}
+
+func TestMeetEmbedMiddleware_allowsSameOriginIframeTest(t *testing.T) {
+	h := meetEmbedMiddleware("")(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	csp := rec.Header().Get("Content-Security-Policy")
+	if !strings.Contains(csp, "'self'") {
+		t.Fatalf("CSP missing 'self' (same-origin iframe test page would be blocked): %q", csp)
 	}
 }
 

@@ -11,6 +11,7 @@ const staticPageRewrites = {
   "/help": "/help.html",
   "/draft-opt-out": "/draft-opt-out.html",
   "/meet-debug": "/meet-debug.html",
+  "/meet-iframe-test": "/meet-iframe-test.html",
 };
 
 /** Serves `index.html` for client routes like `/<room-uuid>` in dev and `vite preview`. */
@@ -36,7 +37,8 @@ function installSpaFallback() {
           p === "/support" ||
           p === "/help" ||
           p === "/draft-opt-out" ||
-          p === "/meet-debug"
+          p === "/meet-debug" ||
+          p === "/meet-iframe-test"
         ) {
           return next();
         }

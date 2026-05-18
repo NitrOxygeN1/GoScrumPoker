@@ -8,9 +8,12 @@ import (
 	"strings"
 )
 
-// meetFrameAncestors lists parents allowed to embed this app (Google Meet side panel / main stage).
-// 'self' is intentionally omitted: only meet.google.com and *.google.com may frame the app.
-const meetFrameAncestors = "https://meet.google.com https://*.google.com"
+// meetFrameAncestors lists parents allowed to embed this app:
+//   - 'self' so the same-origin iframe test page (/meet-iframe-test) can host the app
+//     for layout/UX verification without depending on real Meet.
+//   - https://meet.google.com and https://*.google.com for the actual Meet side panel
+//     and main-stage embed.
+const meetFrameAncestors = "'self' https://meet.google.com https://*.google.com"
 
 // meetEmbedMiddleware sets CSP frame-ancestors for Google Meet and strips X-Frame-Options
 // (DENY/SAMEORIGIN would block embedding). It also removes frame-src 'none' if a downstream
