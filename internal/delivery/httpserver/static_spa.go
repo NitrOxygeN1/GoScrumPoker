@@ -72,6 +72,13 @@ func newStaticHandler(webRoot, meetCloudProjectNumber string) http.Handler {
 	modTime := time.Now()
 
 	serveIndex := func(w http.ResponseWriter, r *http.Request) {
+		// index.html embeds runtime config (Meet cloud project number meta tag)
+		// and references hashed asset URLs. Browsers MUST revalidate it on every
+		// navigation, otherwise a deploy that changes the env var or the asset
+		// hashes can leave clients stuck on a stale shell — exactly the trap that
+		// produced repeated 304s with old contents during Meet add-on rollout.
+		// no-cache (not no-store) still allows 304s when modtime is unchanged.
+		w.Header().Set("Cache-Control", "no-cache")
 		http.ServeContent(w, r, "index.html", modTime, bytes.NewReader(indexData))
 	}
 
@@ -97,6 +104,9 @@ func newStaticHandler(webRoot, meetCloudProjectNumber string) http.Handler {
 			return
 		}
 		if file, ok := staticHTMLPages[rel]; ok {
+			// Same reasoning as index.html: these are unhashed HTML routes
+			// (legal pages, diagnostics) — let browsers revalidate on every load.
+			w.Header().Set("Cache-Control", "no-cache")
 			serveUnderStaticRoot(w, r, abs, file)
 			return
 		}

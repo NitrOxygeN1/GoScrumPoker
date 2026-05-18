@@ -83,6 +83,49 @@ func TestStaticHandler_omitsMetaWhenProjectNumberEmpty(t *testing.T) {
 	}
 }
 
+func TestStaticHandler_indexAlwaysRevalidates(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(
+		filepath.Join(dir, "index.html"),
+		[]byte(`<!DOCTYPE html><html><head></head><body></body></html>`),
+		0o644,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	h := newStaticHandler(dir, "")
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if got := rec.Header().Get("Cache-Control"); got != "no-cache" {
+		t.Fatalf("Cache-Control on /: got %q want %q", got, "no-cache")
+	}
+}
+
+func TestStaticHandler_legalPageAlwaysRevalidates(t *testing.T) {
+	dir := t.TempDir()
+	for _, file := range staticHTMLPages {
+		if err := os.WriteFile(filepath.Join(dir, file), []byte("<!DOCTYPE html><title>x</title>"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(dir, "index.html"), []byte("<!DOCTYPE html><title>app</title>"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	h := newStaticHandler(dir, "")
+
+	for routePath := range staticHTMLPages {
+		req := httptest.NewRequest(http.MethodGet, "/"+routePath, nil)
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		if got := rec.Header().Get("Cache-Control"); got != "no-cache" {
+			t.Fatalf("Cache-Control on /%s: got %q want %q", routePath, got, "no-cache")
+		}
+	}
+}
+
 func TestStaticHandler_escapesMeetCloudProjectNumber(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(
