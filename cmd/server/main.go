@@ -130,6 +130,12 @@ func main() {
 		logger.Warn().Msg("Google OAuth disabled: set GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET, OAUTH_REDIRECT_URL, JWT_SECRET")
 	}
 
+	if cfg.GoogleCloudProjectNumber == "" {
+		logger.Warn().Msg("Meet add-on SDK not configured: set GOOGLE_CLOUD_PROJECT_NUMBER so the SPA can call meet.addon.createAddonSession (otherwise Meet shows 'Failed to launch the add-on')")
+	} else {
+		logger.Info().Str("cloud_project_number", cfg.GoogleCloudProjectNumber).Msg("Meet add-on SDK enabled")
+	}
+
 	webRoot := cfg.WebRoot
 	if webRoot != "" {
 		st, err := os.Stat(webRoot)
@@ -160,6 +166,7 @@ func main() {
 			HealthExposeErrorDetail: cfg.ExposeHealthErrorDetail(),
 			WebRoot:                 webRoot,
 			CSPFrameAncestorsExtra:  cfg.CSPFrameAncestorsExtra,
+			MeetCloudProjectNumber:  cfg.GoogleCloudProjectNumber,
 		}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}

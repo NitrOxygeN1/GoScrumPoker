@@ -17,3 +17,9 @@ services:
         value: prod
       - key: RUN_MIGRATIONS_ON_STARTUP
         value: "true"
+      # Google Cloud project number (NOT project id) used by the Meet Web Add-ons SDK.
+      # Find it at https://console.cloud.google.com/iam-admin/settings (same project as the
+      # Workspace Marketplace SDK app). Required for Meet to consider the add-on launched —
+      # without it, Meet's host shell shows "Failed to launch the add-on".
+      - key: GOOGLE_CLOUD_PROJECT_NUMBER
+        sync: false

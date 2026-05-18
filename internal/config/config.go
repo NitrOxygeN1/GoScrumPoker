@@ -39,6 +39,11 @@ type Config struct {
 	MeetIFrameEmbed bool
 	// CSPFrameAncestorsExtra adds optional frame-ancestors sources (space-separated host sources).
 	CSPFrameAncestorsExtra string
+	// GoogleCloudProjectNumber is the Google Cloud project number (NOT project id) used to
+	// initialize the Meet Web Add-ons SDK in the SPA. When set, the server injects it into
+	// index.html as <meta name="gsp-cloud-project-number">. Without it the SPA still runs
+	// standalone, but Meet's host shell will show "Failed to launch the add-on".
+	GoogleCloudProjectNumber string
 }
 
 // AuthConfig holds Google OAuth2 and session settings (from env).
@@ -139,8 +144,9 @@ func Load() Config {
 		MigrationsPath:         migrationsPath,
 		RunMigrationsOnStartup: runMigrations,
 		RedisRoomTTL:           roomTTL,
-		MeetIFrameEmbed:        meetEmbed,
-		CSPFrameAncestorsExtra: strings.TrimSpace(os.Getenv("CSP_FRAME_ANCESTORS_EXTRA")),
+		MeetIFrameEmbed:          meetEmbed,
+		CSPFrameAncestorsExtra:   strings.TrimSpace(os.Getenv("CSP_FRAME_ANCESTORS_EXTRA")),
+		GoogleCloudProjectNumber: strings.TrimSpace(os.Getenv("GOOGLE_CLOUD_PROJECT_NUMBER")),
 		Auth: AuthConfig{
 			GoogleClientID:     os.Getenv("GOOGLE_OAUTH_CLIENT_ID"),
 			GoogleClientSecret: os.Getenv("GOOGLE_OAUTH_CLIENT_SECRET"),

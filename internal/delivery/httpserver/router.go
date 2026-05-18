@@ -35,6 +35,10 @@ type Dependencies struct {
 	WebRoot string
 	// CSPFrameAncestorsExtra adds space-separated frame-ancestors sources (optional).
 	CSPFrameAncestorsExtra string
+	// MeetCloudProjectNumber is injected into index.html as
+	// <meta name="gsp-cloud-project-number"> so the SPA can initialize the Meet Web
+	// Add-ons SDK. Required for Meet's host shell to consider the add-on launched.
+	MeetCloudProjectNumber string
 }
 
 // WebSocket upgrades run through meetEmbedMiddleware; the iframe document origin is the
@@ -72,7 +76,7 @@ func NewRouter(dep Dependencies) http.Handler {
 	r.Get("/ws/{roomId}", serveWS(dep))
 
 	if dep.WebRoot != "" {
-		staticH := staticFileHandler(dep.WebRoot)
+		staticH := staticFileHandler(dep.WebRoot, dep.MeetCloudProjectNumber)
 		r.NotFound(func(w http.ResponseWriter, r *http.Request) {
 			if r.Method != http.MethodGet && r.Method != http.MethodHead {
 				w.Header().Set("Content-Type", "text/plain; charset=utf-8")

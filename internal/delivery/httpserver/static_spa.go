@@ -2,6 +2,7 @@ package httpserver
 
 import (
 	"bytes"
+	"html"
 	"net/http"
 	"os"
 	"path"
@@ -47,7 +48,11 @@ var staticHTMLPages = map[string]string{
 // newStaticHandler serves the Vite dist. HTML is served with http.ServeContent over an
 // in-memory copy of index.html, not http.ServeFile, so the standard library never
 // issues redirects that resolve to a scheme-relative "Location: //" in the address bar.
-func newStaticHandler(webRoot string) http.Handler {
+//
+// meetCloudProjectNumber, when non-empty, is injected as
+// <meta name="gsp-cloud-project-number" content="..."> into the served index.html so the
+// SPA can initialize the Meet Web Add-ons SDK with no rebuild.
+func newStaticHandler(webRoot, meetCloudProjectNumber string) http.Handler {
 	abs, err := filepath.Abs(webRoot)
 	if err != nil {
 		abs = webRoot
@@ -60,10 +65,11 @@ func newStaticHandler(webRoot string) http.Handler {
 			http.Error(w, "static ui unavailable", http.StatusServiceUnavailable)
 		})
 	}
-	var modTime time.Time
-	if st, err := os.Stat(indexPath); err == nil {
-		modTime = st.ModTime()
-	}
+	indexData = injectRuntimeConfig(indexData, meetCloudProjectNumber)
+
+	// Use server-startup time so a process restart (e.g. after changing
+	// GOOGLE_CLOUD_PROJECT_NUMBER on Render) invalidates browser caches of index.html.
+	modTime := time.Now()
 
 	serveIndex := func(w http.ResponseWriter, r *http.Request) {
 		http.ServeContent(w, r, "index.html", modTime, bytes.NewReader(indexData))
@@ -119,6 +125,26 @@ func serveUnderStaticRoot(w http.ResponseWriter, r *http.Request, absRoot, rel s
 	http.ServeContent(w, r, path.Base(rel), st.ModTime(), f)
 }
 
-func staticFileHandler(webRoot string) http.Handler {
-	return newStaticHandler(webRoot)
+func staticFileHandler(webRoot, meetCloudProjectNumber string) http.Handler {
+	return newStaticHandler(webRoot, meetCloudProjectNumber)
+}
+
+// injectRuntimeConfig inserts a runtime <meta> tag into <head> so the SPA can read
+// configuration that depends on deploy-time env vars without a frontend rebuild.
+// Currently emits gsp-cloud-project-number for the Meet Web Add-ons SDK.
+func injectRuntimeConfig(indexData []byte, meetCloudProjectNumber string) []byte {
+	pn := strings.TrimSpace(meetCloudProjectNumber)
+	if pn == "" {
+		return indexData
+	}
+	meta := []byte(`<meta name="gsp-cloud-project-number" content="` + html.EscapeString(pn) + `">`)
+	idx := bytes.Index(indexData, []byte("</head>"))
+	if idx < 0 {
+		return indexData
+	}
+	out := make([]byte, 0, len(indexData)+len(meta))
+	out = append(out, indexData[:idx]...)
+	out = append(out, meta...)
+	out = append(out, indexData[idx:]...)
+	return out
 }
