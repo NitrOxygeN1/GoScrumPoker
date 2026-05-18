@@ -149,7 +149,7 @@ func (h *Hub) onJoin(rooms map[string]map[*Client]struct{}, ev ClientEvent) {
 		return
 	}
 
-	if err := h.rooms.JoinRoom(h.baseCtx, ev.RoomID, domain.User{ID: jp.UserID, Name: jp.Name}); err != nil {
+	if err := h.rooms.JoinRoom(h.baseCtx, ev.RoomID, domain.User{ID: jp.UserID, Name: jp.Name, Avatar: jp.Avatar}); err != nil {
 		if errors.Is(err, repository.ErrRoomNotFound) {
 			ev.Client.logger.Warn().Str("ws_event", MsgJoin).Str("room_id", ev.RoomID).Msg("join room not found")
 			ev.Client.enqueue(serverErrorBytes("room not found"))

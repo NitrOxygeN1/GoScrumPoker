@@ -3,6 +3,16 @@ import { useRoomSocket } from "./hooks/useRoomSocket.js";
 import { readDisplayName, saveDisplayName } from "./displayNameStorage.js";
 import { readLastRoomId, saveLastRoomId } from "./lastRoomStorage.js";
 import { computeVoteRecommendation } from "./voteRecommendation.js";
+import { getMeetMeetingInfo, isMeetAddonConfigured } from "./meetAddon.js";
+import { fetchCurrentProfile } from "./profile.js";
+import { isEmbedded } from "./embed.js";
+
+/** Initial guess that the app is loading inside a Google Meet add-on. Suppresses
+ *  the standalone lobby while the Meet SDK handshake decides where to send us. */
+function probablyInMeet() {
+  if (typeof window === "undefined") return false;
+  return isEmbedded() && isMeetAddonConfigured();
+}
 
 const CARDS = ["1", "2", "3", "5", "8", "13", "?", "coffee"];
 const STORY_NUMS = [1, 2, 3, 5, 8, 13];
@@ -170,6 +180,37 @@ function IconEdit() {
   );
 }
 
+function initialsFromName(name) {
+  const trimmed = String(name || "").trim();
+  if (!trimmed) return "?";
+  const parts = trimmed.split(/\s+/).slice(0, 2);
+  return parts.map((p) => p[0]).join("").toUpperCase();
+}
+
+function Avatar({ name, src, size = 28 }) {
+  const [broken, setBroken] = useState(false);
+  const initials = initialsFromName(name);
+  const style = { width: size, height: size };
+  if (src && !broken) {
+    return (
+      <img
+        className="avatar avatar--img"
+        style={style}
+        src={src}
+        alt=""
+        aria-hidden
+        referrerPolicy="no-referrer"
+        onError={() => setBroken(true)}
+      />
+    );
+  }
+  return (
+    <span className="avatar avatar--fallback" style={style} aria-hidden>
+      {initials}
+    </span>
+  );
+}
+
 function IconCheck() {
   return (
     <svg
@@ -191,6 +232,12 @@ function IconCheck() {
 export default function App() {
   const [phase, setPhase] = useState("lobby");
   const [displayName, setDisplayName] = useState(() => readDisplayName());
+  const [userAvatar, setUserAvatar] = useState("");
+  // Hide the lobby until Meet auto-join settles, so users in a Meet add-on
+  // never see (and accidentally click) the standalone create/join form.
+  const [meetJoining, setMeetJoining] = useState(
+    () => probablyInMeet() && !parsePathForLobby().fromRoomLink
+  );
   const [roomIdInput, setRoomIdInput] = useState(
     () => parsePathForLobby().roomId
   );
@@ -249,6 +296,102 @@ export default function App() {
     }
   }, []);
 
+  // Apply the Google profile (name + avatar) for both standalone and Meet runs.
+  // We respect a non-empty display name already in storage (the user may have
+  // renamed themselves) and only fill in defaults when there is none.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const prof = await fetchCurrentProfile();
+      if (cancelled || !prof || !prof.signedIn) return;
+      if (prof.avatar) setUserAvatar((prev) => prev || prof.avatar);
+      if (prof.displayName) {
+        setDisplayName((prev) => {
+          const existing = (prev || "").trim();
+          return existing ? prev : prof.displayName;
+        });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // When the app is launched as a Meet add-on, bind to a Scrum Poker room that
+  // tracks the current meeting and jump straight into it. Manual lobby / room
+  // links still win: a path like `/<uuid>` keeps its existing auto-join flow.
+  const meetAutoJoinTried = useRef(false);
+  useEffect(() => {
+    if (meetAutoJoinTried.current) return;
+    if (joinFromRoomLink) return; // explicit room link beats meeting auto-binding
+    meetAutoJoinTried.current = true;
+
+    let cancelled = false;
+    (async () => {
+      const info = await getMeetMeetingInfo();
+      if (cancelled) return;
+      if (!info) {
+        // Not in Meet (or SDK failed) — release the standalone lobby.
+        setMeetJoining(false);
+        return;
+      }
+
+      setMeetJoining(true);
+      try {
+        const profPromise = fetchCurrentProfile();
+        const res = await fetch("/rooms/by-meet", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            meeting_id: info.meetingId || "",
+            meeting_code: info.meetingCode || "",
+          }),
+        });
+        if (!res.ok) {
+          console.warn("[meet] /rooms/by-meet failed", res.status);
+          return;
+        }
+        const data = await res.json();
+        if (cancelled || !data?.id) return;
+
+        const prof = await profPromise;
+        const nameFromProfile = prof?.displayName ? String(prof.displayName) : "";
+        const avatarFromProfile = prof?.avatar ? String(prof.avatar) : "";
+        const stored = readDisplayName().trim();
+        const finalName = stored || nameFromProfile;
+
+        if (!finalName) {
+          // No identity available — fall back to the standard lobby so the user
+          // can type a name (their next visit will then auto-join in one click).
+          // Stash the room id so the lobby's "Join room" still goes to it.
+          setRoomIdInput(data.id);
+          saveLastRoomId(data.id);
+          return;
+        }
+        setDisplayName(finalName);
+        saveDisplayName(finalName);
+        if (avatarFromProfile) setUserAvatar(avatarFromProfile);
+
+        saveLastRoomId(data.id);
+        setActiveRoomId(data.id);
+        prevRevealedRef.current = false;
+        setRoomState(initialRoomState());
+        setSelectedCard(null);
+        setPhase("room");
+      } catch (e) {
+        console.warn("[meet] auto-join failed", e?.message || e);
+      } finally {
+        if (!cancelled) setMeetJoining(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     if (phase !== "room" || !activeRoomId) return;
     const want = `/${activeRoomId}`;
@@ -299,6 +442,7 @@ export default function App() {
   const { userId, vote, reveal, reset, rejoinWithName } = useRoomSocket({
     roomId: activeRoomId,
     displayName,
+    avatar: userAvatar,
     enabled: phase === "room",
     onServerMessage: handleServerMessage,
   });
@@ -617,6 +761,11 @@ export default function App() {
           Joining room…
         </p>
       )}
+      {phase === "lobby" && !joinFromRoomLink && meetJoining && (
+        <p className="link-join-status" role="status" aria-live="polite">
+          Connecting to this meeting…
+        </p>
+      )}
 
       {showLinkNameForm && (
         <div className="panel join-link-panel">
@@ -692,7 +841,7 @@ export default function App() {
         </div>
       )}
 
-      {phase === "lobby" && !joinFromRoomLink && (
+      {phase === "lobby" && !joinFromRoomLink && !meetJoining && (
         <div className="panel">
           <label htmlFor="name">Your name</label>
           <input
@@ -833,7 +982,10 @@ export default function App() {
               </div>
             ) : (
               <div className="you-line you-line--view">
-                <span className="you-line-name">{displayName.trim()}</span>
+                <span className="you-identity">
+                  <Avatar name={displayName} src={userAvatar} size={32} />
+                  <span className="you-line-name">{displayName.trim()}</span>
+                </span>
                 <div className="you-line-actions">
                   <button
                     type="button"
@@ -881,7 +1033,10 @@ export default function App() {
               )}
               {sortedParticipants.map((u) => (
                 <li key={u.id}>
-                  <span>{u.name}</span>
+                  <span className="participant-identity">
+                    <Avatar name={u.name} src={u.avatar} size={28} />
+                    <span className="participant-name">{u.name}</span>
+                  </span>
                   <span>
                     {roomState.revealed ? (
                       <span className="badge revealed">

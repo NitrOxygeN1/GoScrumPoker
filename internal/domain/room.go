@@ -3,9 +3,12 @@ package domain
 import "sort"
 
 // User is a participant in a planning poker room.
+// Avatar is an optional image URL (e.g. Google profile picture) used for UI only;
+// it has no role in identity or authorization.
 type User struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Avatar string `json:"avatar,omitempty"`
 }
 
 // Room is the aggregate root for a Scrum Poker session.
@@ -36,10 +39,13 @@ type RoomState struct {
 }
 
 // UserPresence augments a user with voting progress without leaking values when hidden.
+// Avatar is omitted when not set so the wire format stays backwards-compatible with
+// older clients that never sent or rendered avatars.
 type UserPresence struct {
-	ID    string `json:"id"`
-	Name  string `json:"name"`
-	Voted bool   `json:"voted"`
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Avatar string `json:"avatar,omitempty"`
+	Voted  bool   `json:"voted"`
 }
 
 // BuildRoomState returns a snapshot suitable for clients.
@@ -61,9 +67,10 @@ func BuildRoomState(r *Room) RoomState {
 		u := r.Users[uid]
 		_, has := r.Votes[uid]
 		st.Users = append(st.Users, UserPresence{
-			ID:    u.ID,
-			Name:  u.Name,
-			Voted: has,
+			ID:     u.ID,
+			Name:   u.Name,
+			Avatar: u.Avatar,
+			Voted:  has,
 		})
 	}
 

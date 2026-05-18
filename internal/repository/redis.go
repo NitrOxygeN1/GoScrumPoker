@@ -13,7 +13,10 @@ import (
 	"GoScrumPoker/internal/domain"
 )
 
-const redisKeyPrefix = "scrum:room:"
+const (
+	redisKeyPrefix     = "scrum:room:"
+	redisMeetKeyPrefix = "scrum:meet:" // value = roomID; bound to a Meet meetingId
+)
 
 type roomDoc struct {
 	ID       string                 `json:"id"`
@@ -41,6 +44,10 @@ func NewRedis(rdb *redis.Client, ttl time.Duration) *Redis {
 
 func (s *Redis) roomKey(id string) string {
 	return redisKeyPrefix + id
+}
+
+func (s *Redis) meetKey(meetingID string) string {
+	return redisMeetKeyPrefix + meetingID
 }
 
 // Close closes the Redis client.
@@ -101,6 +108,49 @@ func (s *Redis) CreateRoom(ctx context.Context) (*domain.Room, error) {
 		}
 	}
 	return nil, errors.New("could not allocate unique room id")
+}
+
+// GetOrCreateRoomByMeet implements RoomRepository. The meeting->room binding
+// is stored in a separate key so a stale binding (e.g. its target room expired)
+// can be replaced atomically. Existing bindings have their TTL refreshed.
+func (s *Redis) GetOrCreateRoomByMeet(ctx context.Context, meetingID string) (string, bool, error) {
+	mkey := s.meetKey(meetingID)
+
+	for attempt := 0; attempt < 8; attempt++ {
+		existing, err := s.rdb.GetEx(ctx, mkey, s.ttl).Result()
+		if err != nil && err != redis.Nil {
+			return "", false, err
+		}
+		if err == nil && existing != "" {
+			alive, exErr := s.Exists(ctx, existing)
+			if exErr != nil {
+				return "", false, exErr
+			}
+			if alive {
+				return existing, false, nil
+			}
+			// Target room expired; drop the stale binding and fall through to create.
+			if _, dErr := s.rdb.Del(ctx, mkey).Result(); dErr != nil {
+				return "", false, dErr
+			}
+		}
+
+		room, cErr := s.CreateRoom(ctx)
+		if cErr != nil {
+			return "", false, cErr
+		}
+		ok, sErr := s.rdb.SetNX(ctx, mkey, room.ID, s.ttl).Result()
+		if sErr != nil {
+			return "", false, sErr
+		}
+		if ok {
+			return room.ID, true, nil
+		}
+		// Another caller bound the meeting first: drop the orphan we just created and retry.
+		_, _ = s.rdb.Del(ctx, s.roomKey(room.ID)).Result()
+	}
+
+	return "", false, errors.New("could not bind meeting to a room: retry budget exhausted")
 }
 
 // Exists implements RoomRepository.

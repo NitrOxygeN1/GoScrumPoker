@@ -23,6 +23,17 @@ func (s *RoomService) CreateRoom(ctx context.Context) (*domain.Room, error) {
 	return s.rooms.CreateRoom(ctx)
 }
 
+// GetOrCreateRoomForMeet returns the room ID bound to the given Google Meet
+// meetingId, allocating a new room on first launch. The second return value
+// is true when a room was created on this call.
+func (s *RoomService) GetOrCreateRoomForMeet(ctx context.Context, meetingID string) (string, bool, error) {
+	meetingID = strings.TrimSpace(meetingID)
+	if meetingID == "" {
+		return "", false, ErrInvalidInput
+	}
+	return s.rooms.GetOrCreateRoomByMeet(ctx, meetingID)
+}
+
 // RoomExists reports whether a room id is known.
 func (s *RoomService) RoomExists(ctx context.Context, id string) (bool, error) {
 	return s.rooms.Exists(ctx, id)
@@ -43,6 +54,7 @@ func (s *RoomService) JoinRoom(ctx context.Context, roomID string, user domain.U
 	}
 	user.ID = strings.TrimSpace(user.ID)
 	user.Name = strings.TrimSpace(user.Name)
+	user.Avatar = strings.TrimSpace(user.Avatar)
 	return s.rooms.Join(ctx, roomID, user)
 }
 

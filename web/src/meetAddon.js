@@ -43,6 +43,29 @@ export function getMeetAddonInit() {
 }
 
 /**
+ * Resolves to the Meet `MeetingInfo` object ({ meetingId, meetingCode }) for the
+ * current call, or `null` when the app is not running inside Meet or the SDK
+ * client failed to expose meeting info.
+ *
+ * Side-panel and main-stage clients both expose `getMeetingInfo()`.
+ */
+export async function getMeetMeetingInfo() {
+  const init = await initMeetAddon();
+  if (!init || init.status !== "ready" || !init.client) return null;
+  try {
+    const info = await init.client.getMeetingInfo();
+    if (!info || typeof info !== "object") return null;
+    const meetingId = String(info.meetingId || "").trim();
+    const meetingCode = String(info.meetingCode || "").trim();
+    if (!meetingId && !meetingCode) return null;
+    return { meetingId, meetingCode };
+  } catch (e) {
+    console.warn("[meet-addon] getMeetingInfo failed:", e?.message || e);
+    return null;
+  }
+}
+
+/**
  * Initializes the Meet Web Add-ons SDK if the page is in an iframe and a cloud
  * project number is configured. Idempotent — safe to call multiple times.
  *

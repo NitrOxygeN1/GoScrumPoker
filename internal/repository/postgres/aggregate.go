@@ -36,7 +36,7 @@ func loadRoom(ctx context.Context, q rowQuerier, roomID uuid.UUID) (*domain.Room
 	r.Revealed = revealed
 
 	rows, err := q.Query(ctx,
-		`SELECT user_id, display_name FROM room_participants WHERE room_id = $1 ORDER BY user_id`,
+		`SELECT user_id, display_name, COALESCE(avatar_url, '') FROM room_participants WHERE room_id = $1 ORDER BY user_id`,
 		roomID,
 	)
 	if err != nil {
@@ -45,11 +45,11 @@ func loadRoom(ctx context.Context, q rowQuerier, roomID uuid.UUID) (*domain.Room
 	defer rows.Close()
 
 	for rows.Next() {
-		var uid, display string
-		if err := rows.Scan(&uid, &display); err != nil {
+		var uid, display, avatar string
+		if err := rows.Scan(&uid, &display, &avatar); err != nil {
 			return nil, fmt.Errorf("scan participant: %w", err)
 		}
-		r.Users[uid] = domain.User{ID: uid, Name: display}
+		r.Users[uid] = domain.User{ID: uid, Name: display, Avatar: avatar}
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

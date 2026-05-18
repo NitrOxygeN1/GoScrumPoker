@@ -39,9 +39,11 @@ type ServerMessage struct {
 type Envelope = ClientMessage
 
 // JoinPayload is required for the first "join" message.
+// Avatar is optional (e.g. Google profile picture) and surfaces in the room snapshot.
 type JoinPayload struct {
 	UserID string `json:"user_id"`
 	Name   string `json:"name"`
+	Avatar string `json:"avatar,omitempty"`
 }
 
 // VotePayload carries the chosen card value.

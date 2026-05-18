@@ -330,9 +330,51 @@ button:disabled {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 0.5rem;
   padding: 0.45rem 0;
   border-bottom: 1px solid var(--border);
   font-size: 0.95rem;
+}
+
+.participant-identity,
+.you-identity {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.participant-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--border);
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  line-height: 1;
+  user-select: none;
+}
+
+.avatar--img {
+  object-fit: cover;
+}
+
+.avatar--fallback {
+  border: 1px solid var(--border);
 }
 
 .participants li:last-child {

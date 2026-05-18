@@ -38,6 +38,45 @@ func (r *PostgresRoomRepository) CreateRoom(ctx context.Context) (*domain.Room, 
 	return domain.NewRoom(id.String()), nil
 }
 
+// GetOrCreateRoomByMeet implements repository.RoomRepository.
+// The (rooms.meet_meeting_id) partial unique index plus ON CONFLICT DO NOTHING
+// serializes concurrent first-launches of the same Meet add-on instance.
+func (r *PostgresRoomRepository) GetOrCreateRoomByMeet(ctx context.Context, meetingID string) (string, bool, error) {
+	var existing uuid.UUID
+	err := r.pool.QueryRow(ctx,
+		`SELECT id FROM rooms WHERE meet_meeting_id = $1`, meetingID,
+	).Scan(&existing)
+	if err == nil {
+		return existing.String(), false, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return "", false, fmt.Errorf("lookup meet room: %w", err)
+	}
+
+	newID := uuid.New()
+	var insertedID uuid.UUID
+	err = r.pool.QueryRow(ctx,
+		`INSERT INTO rooms (id, meet_meeting_id) VALUES ($1, $2)
+		 ON CONFLICT (meet_meeting_id) DO NOTHING
+		 RETURNING id`,
+		newID, meetingID,
+	).Scan(&insertedID)
+	switch {
+	case err == nil:
+		return insertedID.String(), true, nil
+	case errors.Is(err, pgx.ErrNoRows):
+		// Lost the insert race; fetch the winner.
+		if err := r.pool.QueryRow(ctx,
+			`SELECT id FROM rooms WHERE meet_meeting_id = $1`, meetingID,
+		).Scan(&existing); err != nil {
+			return "", false, fmt.Errorf("re-fetch meet room: %w", err)
+		}
+		return existing.String(), false, nil
+	default:
+		return "", false, fmt.Errorf("insert meet room: %w", err)
+	}
+}
+
 // Exists implements repository.RoomRepository.
 func (r *PostgresRoomRepository) Exists(ctx context.Context, id string) (bool, error) {
 	rid, err := parseRoomID(id)
@@ -82,9 +121,11 @@ func (r *PostgresRoomRepository) Join(ctx context.Context, roomID string, user d
 		return fmt.Errorf("room lookup: %w", err)
 	}
 	_, err = r.pool.Exec(ctx,
-		`INSERT INTO room_participants (room_id, user_id, display_name) VALUES ($1, $2, $3)
-		 ON CONFLICT (room_id, user_id) DO UPDATE SET display_name = EXCLUDED.display_name`,
-		rid, user.ID, user.Name,
+		`INSERT INTO room_participants (room_id, user_id, display_name, avatar_url) VALUES ($1, $2, $3, $4)
+		 ON CONFLICT (room_id, user_id) DO UPDATE SET
+		     display_name = EXCLUDED.display_name,
+		     avatar_url   = EXCLUDED.avatar_url`,
+		rid, user.ID, user.Name, user.Avatar,
 	)
 	if err != nil {
 		return fmt.Errorf("join participant: %w", err)

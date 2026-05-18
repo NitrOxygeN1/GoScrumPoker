@@ -15,15 +15,33 @@ function getOrCreateUserId() {
   }
 }
 
+function buildJoinPayload(userId, name, avatar) {
+  const payload = { user_id: userId, name };
+  const a = (avatar || "").trim();
+  if (a) payload.avatar = a;
+  return payload;
+}
+
 /**
  * WebSocket to Go server: join on connect, then exposes vote / reveal / reset.
+ *
+ * `avatar` is optional; when set (e.g. Google profile picture URL) it is sent in
+ * the join payload and broadcast back via the room snapshot.
  */
-export function useRoomSocket({ roomId, displayName, enabled, onServerMessage }) {
+export function useRoomSocket({
+  roomId,
+  displayName,
+  avatar,
+  enabled,
+  onServerMessage,
+}) {
   const wsRef = useRef(null);
   const userIdRef = useRef(getOrCreateUserId());
   const onMessageRef = useRef(onServerMessage);
   const nameForOpenRef = useRef(displayName);
+  const avatarForOpenRef = useRef(avatar || "");
   nameForOpenRef.current = displayName;
+  avatarForOpenRef.current = avatar || "";
   onMessageRef.current = onServerMessage;
 
   useEffect(() => {
@@ -44,7 +62,11 @@ export function useRoomSocket({ roomId, displayName, enabled, onServerMessage })
         ws.send(
           JSON.stringify({
             type: "join",
-            payload: { user_id: userIdRef.current, name: n },
+            payload: buildJoinPayload(
+              userIdRef.current,
+              n,
+              avatarForOpenRef.current
+            ),
           })
         );
       }
@@ -72,18 +94,34 @@ export function useRoomSocket({ roomId, displayName, enabled, onServerMessage })
     }
   }, []);
 
-  /** Updates display name in the room (reuses server join/upsert). */
+  /** Re-sends the join payload so server-side row reflects current name/avatar. */
   const rejoinWithName = useCallback(
     (name) => {
       const n = (name || "").trim();
       if (!n) return;
       send({
         type: "join",
-        payload: { user_id: userIdRef.current, name: n },
+        payload: buildJoinPayload(
+          userIdRef.current,
+          n,
+          avatarForOpenRef.current
+        ),
       });
     },
     [send]
   );
+
+  // Push avatar updates that arrive after the initial join (e.g. /api/me
+  // returns a profile picture moments after the WebSocket opened).
+  useEffect(() => {
+    if (!enabled || !roomId) return;
+    const n = (nameForOpenRef.current || "").trim();
+    if (!n) return;
+    send({
+      type: "join",
+      payload: buildJoinPayload(userIdRef.current, n, avatarForOpenRef.current),
+    });
+  }, [avatar, enabled, roomId, send]);
 
   return {
     userId: userIdRef.current,

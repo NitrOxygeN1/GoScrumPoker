@@ -72,6 +72,7 @@ func NewRouter(dep Dependencies) http.Handler {
 
 	r.Get("/health", health(dep))
 	r.Post("/rooms", createRoom(dep))
+	r.Post("/rooms/by-meet", roomForMeet(dep))
 	r.Get("/rooms/{id}", getRoom(dep))
 	r.Get("/ws/{roomId}", serveWS(dep))
 
@@ -138,6 +139,64 @@ func createRoom(dep Dependencies) http.HandlerFunc {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
 		_ = json.NewEncoder(w).Encode(map[string]string{"id": room.ID})
+	}
+}
+
+// roomForMeet returns (or creates) the Scrum Poker room bound to the current
+// Google Meet meeting. The client sends the Meet SDK's MeetingInfo so that
+// every participant in the same call lands in the same room automatically.
+//
+// Note: we trust the meeting_id supplied by the client; it is delivered by the
+// Meet add-on iframe, which is itself gated by Meet auth. A bad actor who
+// guesses a meeting_id only obtains the room id (rooms are otherwise
+// addressable by anyone with the id), so no escalation is possible.
+func roomForMeet(dep Dependencies) http.HandlerFunc {
+	type request struct {
+		MeetingID   string `json:"meeting_id"`
+		MeetingCode string `json:"meeting_code"`
+	}
+	type response struct {
+		ID      string `json:"id"`
+		Created bool   `json:"created"`
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		lg := logging.LoggerFromRequest(dep.Log, r)
+		var body request
+		if r.Body != nil {
+			defer r.Body.Close()
+			dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4<<10))
+			dec.DisallowUnknownFields()
+			if err := dec.Decode(&body); err != nil {
+				writeJSONError(w, http.StatusBadRequest, "invalid json body")
+				return
+			}
+		}
+		key := strings.TrimSpace(body.MeetingID)
+		if key == "" {
+			// Fall back to meetingCode if the SDK ever omits meetingId; either is
+			// stable for the meeting space.
+			key = strings.TrimSpace(body.MeetingCode)
+		}
+		if key == "" {
+			writeJSONError(w, http.StatusBadRequest, "meeting_id required")
+			return
+		}
+
+		id, created, err := dep.Rooms.GetOrCreateRoomForMeet(r.Context(), key)
+		if err != nil {
+			lg.Error().Err(err).Str("meet_key", key).Msg("get or create meet room failed")
+			writeJSONError(w, http.StatusInternalServerError, "could not bind meeting to a room")
+			return
+		}
+		lg.Info().Str("room_id", id).Str("meet_key", key).Bool("created", created).Msg("meet room resolved")
+
+		w.Header().Set("Content-Type", "application/json")
+		status := http.StatusOK
+		if created {
+			status = http.StatusCreated
+		}
+		w.WriteHeader(status)
+		_ = json.NewEncoder(w).Encode(response{ID: id, Created: created})
 	}
 }
 
