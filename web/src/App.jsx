@@ -407,6 +407,10 @@ export default function App() {
   const displayNameForJoinRef = useRef(displayName);
   displayNameForJoinRef.current = displayName;
   const autoLinkJoinTried = useRef(false);
+  // Set true when the user clicks "Sign in with Google" from the join-link
+  // form. Lets the auto-join effect fire as soon as the resulting display
+  // name lands, even though no name was present at mount time.
+  const linkJoinSignInPendingRef = useRef(false);
 
   const showToast = useCallback((message, kind = "default") => {
     window.clearTimeout(toastTimerRef.current);
@@ -490,6 +494,17 @@ export default function App() {
     userInitiatedSignInRef.current = true;
     signInWithGoogle();
   }, [signInWithGoogle]);
+
+  const handleSignInFromLinkJoin = useCallback(() => {
+    linkJoinSignInPendingRef.current = true;
+    handleSignIn();
+  }, [handleSignIn]);
+
+  useEffect(() => {
+    if (signInError) {
+      linkJoinSignInPendingRef.current = false;
+    }
+  }, [signInError]);
 
   const handleSignOut = useCallback(async () => {
     await signOutFromGoogle();
@@ -728,11 +743,28 @@ export default function App() {
     if (phase !== "lobby" || !joinFromRoomLink) return;
     const id = roomIdInput.trim();
     if (!id) return;
-    if (!canAutoJoinFromLinkRef.current) return;
     if (autoLinkJoinTried.current) return;
+    const hasName = (displayName || "").trim() !== "";
+    if (!hasName) return;
+    // Two ways to auto-join: a name was already known at mount (saved or
+    // existing Google session), or the user just completed Google sign-in
+    // from the link-join form (pending flag + actually signed in now).
+    const fromPendingSignIn =
+      linkJoinSignInPendingRef.current && googleProfile.signedIn;
+    if (!canAutoJoinFromLinkRef.current && !fromPendingSignIn) {
+      return;
+    }
+    linkJoinSignInPendingRef.current = false;
     autoLinkJoinTried.current = true;
     joinByRoomId(id, { fromAuto: true });
-  }, [joinFromRoomLink, roomIdInput, phase, joinByRoomId]);
+  }, [
+    joinFromRoomLink,
+    roomIdInput,
+    phase,
+    displayName,
+    googleProfile.signedIn,
+    joinByRoomId,
+  ]);
 
   async function createRoom() {
     if (!displayName.trim()) {
@@ -973,17 +1005,46 @@ export default function App() {
       {showLinkNameForm && (
         <div className="panel join-link-panel">
           <div className="join-link-lead-section">
-            <button
-              type="button"
-              className="icon-btn join-link-close join-link-close--corner"
-              onClick={goToMainLobby}
-              title="Return to home page (Esc)"
-              aria-label="Return to home page"
-            >
-              <IconClose />
-            </button>
+            {!inMeetIframe && (
+              <button
+                type="button"
+                className="icon-btn join-link-close join-link-close--corner"
+                onClick={goToMainLobby}
+                title="Return to home page (Esc)"
+                aria-label="Return to home page"
+              >
+                <IconClose />
+              </button>
+            )}
             <p className="join-link-lead">Enter your name to join this room.</p>
           </div>
+          {!googleProfile.signedIn && (
+            <div className="join-link-signin">
+              <button
+                type="button"
+                className="signin-btn"
+                onClick={handleSignInFromLinkJoin}
+                disabled={signingIn}
+              >
+                <GoogleGlyph />
+                <span>
+                  {signingIn ? "Waiting for Google…" : "Sign in with Google"}
+                </span>
+              </button>
+              <p className="muted join-link-signin-hint">
+                We'll use your Google name and avatar and take you straight
+                into the room.
+              </p>
+              {signInError ? (
+                <p className="signin-error" role="alert">
+                  {signInError}
+                </p>
+              ) : null}
+              <div className="join-link-divider" aria-hidden>
+                <span>or</span>
+              </div>
+            </div>
+          )}
           <form
             className="join-link-name-form"
             onSubmit={(e) => {
@@ -1009,9 +1070,11 @@ export default function App() {
               <button type="submit" className="primary" disabled={busy}>
                 Join room
               </button>
-              <button type="button" className="ghost" onClick={goToMainLobby}>
-                Return to home page
-              </button>
+              {!inMeetIframe && (
+                <button type="button" className="ghost" onClick={goToMainLobby}>
+                  Return to home page
+                </button>
+              )}
             </div>
           </form>
         </div>
@@ -1023,24 +1086,31 @@ export default function App() {
             className="join-link-lead-section"
             style={{ minHeight: "0", paddingBottom: 0 }}
           >
-            <button
-              type="button"
-              className="icon-btn join-link-close join-link-close--corner"
-              onClick={goToMainLobby}
-              title="Return to home page (Esc)"
-              aria-label="Return to home page"
-            >
-              <IconClose />
-            </button>
+            {!inMeetIframe && (
+              <button
+                type="button"
+                className="icon-btn join-link-close join-link-close--corner"
+                onClick={goToMainLobby}
+                title="Return to home page (Esc)"
+                aria-label="Return to home page"
+              >
+                <IconClose />
+              </button>
+            )}
             <span className="visually-hidden">
               The room could not be opened. Details were shown in a message.
             </span>
           </div>
-          <div className="row join-link-actions" style={{ marginTop: "0.75rem" }}>
-            <button type="button" className="ghost" onClick={goToMainLobby}>
-              Return to home page
-            </button>
-          </div>
+          {!inMeetIframe && (
+            <div
+              className="row join-link-actions"
+              style={{ marginTop: "0.75rem" }}
+            >
+              <button type="button" className="ghost" onClick={goToMainLobby}>
+                Return to home page
+              </button>
+            </div>
+          )}
         </div>
       )}
 

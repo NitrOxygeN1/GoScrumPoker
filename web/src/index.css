@@ -198,6 +198,41 @@ button.app-title:focus-visible {
   gap: 0.5rem;
 }
 
+.join-link-signin {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0 0 0.85rem;
+}
+
+.join-link-signin-hint {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+.join-link-divider {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin: 0.45rem 0 0.1rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.join-link-divider::before,
+.join-link-divider::after {
+  content: "";
+  flex: 1;
+  border-top: 1px solid var(--border);
+}
+
+.join-link-divider span {
+  padding: 0 0.65rem;
+}
+
 .you-line {
   display: flex;
   flex-direction: row;
