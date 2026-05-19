@@ -597,6 +597,19 @@ button:disabled {
   flex-shrink: 0;
 }
 
+/* Icon-only variant: shows just the Google "G", relies on the title attribute
+   for the hover tooltip. Used inside the Google Meet add-on side panel where
+   horizontal space is tight. */
+.signin-btn--icon {
+  width: auto;
+  gap: 0;
+  padding: 0.35rem 0.45rem;
+  flex-shrink: 0;
+  min-width: 2.3rem;
+  min-height: 2.3rem;
+  line-height: 0;
+}
+
 .panel.meet-bind-error {
   border-color: rgba(255, 107, 107, 0.45);
   color: var(--danger);

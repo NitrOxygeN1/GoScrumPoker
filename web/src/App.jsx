@@ -1162,42 +1162,49 @@ export default function App() {
 
       {phase === "room" && (
         <>
-          <div className="panel">
-            <div className="room-id-row">
-              <div>
-                <div className="muted">Room ID</div>
-                <button
-                  type="button"
-                  className="room-id-text"
-                  onClick={copyRoomId}
-                  title="Copy room ID"
-                  aria-label="Copy room ID to clipboard"
-                >
-                  {activeRoomId}
-                </button>
-              </div>
-              <div className="room-id-actions">
-                <button
-                  type="button"
-                  className="icon-btn"
-                  onClick={copyRoomId}
-                  title="Copy room ID"
-                  aria-label="Copy room ID"
-                >
-                  <IconClipboard />
-                </button>
-                <button
-                  type="button"
-                  className="icon-btn"
-                  onClick={copyRoomUrl}
-                  title="Copy room link"
-                  aria-label="Copy room link"
-                >
-                  <IconShareLink />
-                </button>
+          {/* Clipboard write is blocked inside the Meet add-on iframe (Meet
+              does not set allow="clipboard-write"), so copying the room id /
+              link can't be made to work from here. The meeting itself binds
+              the room, so participants don't need to share the link manually
+              anyway — hide the panel entirely. */}
+          {!inMeetIframe && (
+            <div className="panel">
+              <div className="room-id-row">
+                <div>
+                  <div className="muted">Room ID</div>
+                  <button
+                    type="button"
+                    className="room-id-text"
+                    onClick={copyRoomId}
+                    title="Copy room ID"
+                    aria-label="Copy room ID to clipboard"
+                  >
+                    {activeRoomId}
+                  </button>
+                </div>
+                <div className="room-id-actions">
+                  <button
+                    type="button"
+                    className="icon-btn"
+                    onClick={copyRoomId}
+                    title="Copy room ID"
+                    aria-label="Copy room ID"
+                  >
+                    <IconClipboard />
+                  </button>
+                  <button
+                    type="button"
+                    className="icon-btn"
+                    onClick={copyRoomUrl}
+                    title="Copy room link"
+                    aria-label="Copy room link"
+                  >
+                    <IconShareLink />
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           <div className="panel you-panel">
             <div className="muted">You</div>
@@ -1280,14 +1287,24 @@ export default function App() {
                       </button>
                       <button
                         type="button"
-                        className="signin-btn signin-btn--compact you-signin-btn"
+                        className={
+                          inMeetIframe
+                            ? "signin-btn signin-btn--icon you-signin-btn you-signin-btn--icon"
+                            : "signin-btn signin-btn--compact you-signin-btn"
+                        }
                         onClick={handleSignIn}
                         disabled={signingIn}
+                        title={
+                          signingIn ? "Waiting for Google…" : "Sign in with Google"
+                        }
+                        aria-label="Sign in with Google"
                       >
                         <GoogleGlyph />
-                        <span>
-                          {signingIn ? "Waiting…" : "Sign in with Google"}
-                        </span>
+                        {!inMeetIframe && (
+                          <span>
+                            {signingIn ? "Waiting…" : "Sign in with Google"}
+                          </span>
+                        )}
                       </button>
                     </>
                   )}
