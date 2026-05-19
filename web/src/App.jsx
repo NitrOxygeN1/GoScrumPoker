@@ -301,8 +301,13 @@ function SiteHeader({
                 className="header-identity"
                 title={profile.email || name}
               >
-                <Avatar name={name} src={profile.avatar} size={30} />
-                <span className="header-name">{name}</span>
+                <Avatar name={name} src={profile.avatar} size={36} />
+                <span className="header-identity-text">
+                  <span className="header-name">{name}</span>
+                  {profile.email && profile.email !== name ? (
+                    <span className="header-email muted">{profile.email}</span>
+                  ) : null}
+                </span>
               </span>
               <button
                 type="button"
@@ -1091,15 +1096,33 @@ export default function App() {
 
       {phase === "lobby" && !joinFromRoomLink && !meetJoining && (
         <div className="panel">
-          <label htmlFor="name">Your name</label>
-          <input
-            id="name"
-            type="text"
-            placeholder="Jane"
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-            autoComplete="nickname"
-          />
+          {googleProfile.signedIn ? (
+            <div className="lobby-identity" aria-label="Signed in as">
+              <label className="lobby-identity-label">Your name</label>
+              <div className="lobby-identity-row">
+                <Avatar
+                  name={displayName}
+                  src={userAvatar || googleProfile.avatar}
+                  size={36}
+                />
+                <span className="lobby-identity-name">
+                  {(displayName || googleProfile.displayName || "").trim()}
+                </span>
+              </div>
+            </div>
+          ) : (
+            <>
+              <label htmlFor="name">Your name</label>
+              <input
+                id="name"
+                type="text"
+                placeholder="Jane"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                autoComplete="nickname"
+              />
+            </>
+          )}
 
           <div className="row" style={{ marginTop: "1rem" }}>
             <button type="button" className="primary" disabled={busy} onClick={createRoom}>
