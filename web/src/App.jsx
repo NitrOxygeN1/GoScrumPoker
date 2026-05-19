@@ -210,109 +210,6 @@ function GoogleGlyph() {
   );
 }
 
-function SignInPanel({ onSignIn, signingIn, error, meetBindError, meetRoomId }) {
-  return (
-    <div className="panel signin-panel">
-      <div className="signin-lead">
-        <strong>Continue with Google</strong>
-        <p className="muted signin-help">
-          {meetRoomId
-            ? "Sign in so this meeting's Scrum Poker room shows your name and profile picture automatically."
-            : "We'll use your Google name and profile picture so other participants can recognize you."}
-        </p>
-      </div>
-      <div className="row signin-actions">
-        <button
-          type="button"
-          className="signin-btn"
-          onClick={onSignIn}
-          disabled={signingIn}
-        >
-          <GoogleGlyph />
-          <span>{signingIn ? "Waiting for Google…" : "Sign in with Google"}</span>
-        </button>
-      </div>
-      {error && (
-        <p className="signin-error" role="alert">
-          {error}
-        </p>
-      )}
-      {!error && meetBindError && (
-        <p className="signin-error" role="alert">
-          Could not bind this meeting to a room: {meetBindError}
-        </p>
-      )}
-    </div>
-  );
-}
-
-function AccountMenu({ profile, onSignOut, signingIn, compact = false }) {
-  const [busy, setBusy] = useState(false);
-  const handleSignOut = async () => {
-    setBusy(true);
-    try {
-      await onSignOut();
-    } finally {
-      setBusy(false);
-    }
-  };
-  const name = (profile.displayName || "").trim() || profile.email || "Account";
-  return (
-    <div className={`panel account-menu${compact ? " account-menu--compact" : ""}`}>
-      <div className="account-menu-row">
-        <AccountAvatar name={name} src={profile.avatar} />
-        <div className="account-menu-identity">
-          <div className="account-menu-name">{name}</div>
-          {profile.email && profile.email !== name ? (
-            <div className="account-menu-email muted">{profile.email}</div>
-          ) : null}
-        </div>
-      </div>
-      <div className="account-menu-actions">
-        <button
-          type="button"
-          className="ghost account-menu-btn"
-          onClick={handleSignOut}
-          disabled={signingIn || busy}
-          title="Sign out of your Google account"
-        >
-          {busy ? "Signing out…" : "Sign out"}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function AccountAvatar({ name, src }) {
-  return <Avatar name={name} src={src} size={36} />;
-}
-
-function InRoomSignInHint({ onSignIn, signingIn, error }) {
-  return (
-    <div className="panel signin-hint">
-      <div className="signin-hint-row">
-        <span className="muted">
-          Sign in with Google to show your profile picture to others.
-        </span>
-        <button
-          type="button"
-          className="signin-btn signin-btn--compact"
-          onClick={onSignIn}
-          disabled={signingIn}
-        >
-          <GoogleGlyph />
-          <span>{signingIn ? "Waiting…" : "Sign in"}</span>
-        </button>
-      </div>
-      {error ? (
-        <p className="signin-error" role="alert">
-          {error}
-        </p>
-      ) : null}
-    </div>
-  );
-}
-
 function initialsFromName(name) {
   const trimmed = String(name || "").trim();
   if (!trimmed) return "?";
@@ -362,7 +259,24 @@ function IconCheck() {
   );
 }
 
-function SiteHeader({ onHomeClick }) {
+function SiteHeader({
+  profile,
+  signingIn,
+  signInError,
+  onHomeClick,
+  onSignIn,
+  onSignOut,
+}) {
+  const [signingOut, setSigningOut] = useState(false);
+  const handleSignOut = async () => {
+    setSigningOut(true);
+    try {
+      await onSignOut();
+    } finally {
+      setSigningOut(false);
+    }
+  };
+  const name = (profile.displayName || "").trim() || profile.email || "Account";
   return (
     <header className="site-header">
       <div className="site-header-inner">
@@ -380,13 +294,44 @@ function SiteHeader({ onHomeClick }) {
           />
           GoScrumPoker
         </button>
-        <nav className="site-nav" aria-label="Site">
-          <a href="/privacy">Privacy</a>
-          <a href="/terms">Terms</a>
-          <a href="/support">Support</a>
-          <a href="/help">Help</a>
-        </nav>
+        <div className="site-header-auth">
+          {profile.signedIn ? (
+            <>
+              <span
+                className="header-identity"
+                title={profile.email || name}
+              >
+                <Avatar name={name} src={profile.avatar} size={30} />
+                <span className="header-name">{name}</span>
+              </span>
+              <button
+                type="button"
+                className="ghost header-auth-btn"
+                onClick={handleSignOut}
+                disabled={signingIn || signingOut}
+                title="Sign out of your Google account"
+              >
+                {signingOut ? "Signing out…" : "Sign out"}
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="signin-btn signin-btn--compact header-auth-btn"
+              onClick={onSignIn}
+              disabled={signingIn}
+            >
+              <GoogleGlyph />
+              <span>{signingIn ? "Waiting…" : "Sign in with Google"}</span>
+            </button>
+          )}
+        </div>
       </div>
+      {signInError ? (
+        <p className="signin-error header-signin-error" role="alert">
+          {signInError}
+        </p>
+      ) : null}
     </header>
   );
 }
@@ -394,7 +339,13 @@ function SiteHeader({ onHomeClick }) {
 function SiteFooter() {
   return (
     <footer className="site-footer">
-      <p>&copy; GoScrumPoker · <a href="/">App</a></p>
+      <nav className="site-footer-nav" aria-label="Legal">
+        <a href="/privacy">Privacy</a>
+        <a href="/terms">Terms</a>
+        <a href="/support">Support</a>
+        <a href="/help">Help</a>
+      </nav>
+      <p className="site-footer-copy">&copy; GoScrumPoker</p>
     </footer>
   );
 }
@@ -989,7 +940,16 @@ export default function App() {
       {/* Site chrome is intentionally hidden inside the Meet add-on iframe:
           Meet's own side-panel chrome already wraps us, and there's no
           home/legal-page navigation to offer in that context. */}
-      {!inMeetIframe && <SiteHeader onHomeClick={goHome} />}
+      {!inMeetIframe && (
+        <SiteHeader
+          profile={googleProfile}
+          signingIn={signingIn}
+          signInError={signInError}
+          onHomeClick={goHome}
+          onSignIn={handleSignIn}
+          onSignOut={handleSignOut}
+        />
+      )}
       <main className="site-main">
       {notFound ? (
         <>
@@ -1123,25 +1083,10 @@ export default function App() {
       {phase === "lobby" &&
         !joinFromRoomLink &&
         !meetJoining &&
-        !googleProfile.signedIn && (
-          <SignInPanel
-            onSignIn={handleSignIn}
-            signingIn={signingIn}
-            error={signInError}
-            meetBindError={meetBindError}
-            meetRoomId={meetRoomId}
-          />
-        )}
-
-      {phase === "lobby" &&
-        !joinFromRoomLink &&
-        !meetJoining &&
-        googleProfile.signedIn && (
-          <AccountMenu
-            profile={googleProfile}
-            onSignOut={handleSignOut}
-            signingIn={signingIn}
-          />
+        meetBindError && (
+          <div className="panel meet-bind-error" role="alert">
+            Could not bind this meeting to a room: {meetBindError}
+          </div>
         )}
 
       {phase === "lobby" && !joinFromRoomLink && !meetJoining && (
@@ -1194,29 +1139,6 @@ export default function App() {
 
       {phase === "room" && (
         <>
-          {/* Inside the Meet add-on, the room is bound to the meeting id —
-              leaving would just auto-rejoin, so the control is hidden. */}
-          {!inMeetIframe && (
-            <button type="button" className="back ghost" onClick={leaveRoom}>
-              ← Leave room
-            </button>
-          )}
-
-          {googleProfile.signedIn ? (
-            <AccountMenu
-              profile={googleProfile}
-              onSignOut={handleSignOut}
-              signingIn={signingIn}
-              compact
-            />
-          ) : (
-            <InRoomSignInHint
-              onSignIn={handleSignIn}
-              signingIn={signingIn}
-              error={signInError}
-            />
-          )}
-
           <div className="panel">
             <div className="room-id-row">
               <div>
@@ -1309,21 +1231,55 @@ export default function App() {
                   <span className="you-line-name">{displayName.trim()}</span>
                 </span>
                 <div className="you-line-actions">
-                  <button
-                    type="button"
-                    className="icon-btn you-edit-ctl"
-                    title="Edit your name"
-                    onClick={() => {
-                      setEditNameDraft((displayName || "").trim());
-                      setEditingYouName(true);
-                    }}
-                    aria-label="Edit your name"
-                  >
-                    <IconEdit />
-                  </button>
+                  {googleProfile.signedIn ? (
+                    <button
+                      type="button"
+                      className="ghost you-signout-btn"
+                      onClick={handleSignOut}
+                      disabled={signingIn}
+                      title="Sign out of your Google account"
+                    >
+                      Sign out
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        className="icon-btn you-edit-ctl"
+                        title="Edit your name"
+                        onClick={() => {
+                          setEditNameDraft((displayName || "").trim());
+                          setEditingYouName(true);
+                        }}
+                        aria-label="Edit your name"
+                      >
+                        <IconEdit />
+                      </button>
+                      <button
+                        type="button"
+                        className="signin-btn signin-btn--compact you-signin-btn"
+                        onClick={handleSignIn}
+                        disabled={signingIn}
+                      >
+                        <GoogleGlyph />
+                        <span>
+                          {signingIn ? "Waiting…" : "Sign in with Google"}
+                        </span>
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             )}
+            {!googleProfile.signedIn && signInError ? (
+              <p
+                className="signin-error you-signin-error"
+                role="alert"
+                style={{ marginTop: "0.5rem" }}
+              >
+                {signInError}
+              </p>
+            ) : null}
             {me && (
               <>
                 <p className="muted" style={{ marginTop: "0.75rem" }}>

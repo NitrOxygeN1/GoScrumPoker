@@ -70,6 +70,26 @@ func (m *SessionManager) Clear(w http.ResponseWriter, r *http.Request) error {
 	return sess.Save(r, w)
 }
 
+// Touch re-saves an existing session cookie with the configured MaxAge so
+// its expiration slides forward. A returning user therefore keeps the
+// session as long as they visit at least once per cookie lifetime; the
+// 7-day clock restarts on every authenticated request. No-op when the
+// request has no valid session (so it never creates one).
+func (m *SessionManager) Touch(w http.ResponseWriter, r *http.Request) error {
+	sess, err := m.Get(r)
+	if err != nil || sess == nil {
+		return err
+	}
+	if sess.IsNew {
+		return nil
+	}
+	if _, ok := sess.Values["google_id"].(string); !ok {
+		return nil
+	}
+	m.applyOptions(sess)
+	return sess.Save(r, w)
+}
+
 // ProfileFromRequest loads the user from the session (and profile store when available).
 func (m *SessionManager) ProfileFromRequest(r *http.Request, profiles *ProfileStore) (Profile, bool) {
 	sess, err := m.Get(r)

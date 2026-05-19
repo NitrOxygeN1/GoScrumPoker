@@ -96,6 +96,12 @@ func (s *Service) RequireAuth(next http.Handler) http.Handler {
 			writeJSONAuthError(w, http.StatusUnauthorized, "not authenticated")
 			return
 		}
+		// Slide the session expiry forward so a returning user keeps their
+		// session as long as they open the app at least once per cookie
+		// lifetime. The SPA pings /api/me on every app load.
+		if err := s.sessions.Touch(w, r); err != nil {
+			s.log.Warn().Err(err).Msg("session sliding refresh failed")
+		}
 		next.ServeHTTP(w, r.WithContext(withUser(r.Context(), prof)))
 	})
 }
