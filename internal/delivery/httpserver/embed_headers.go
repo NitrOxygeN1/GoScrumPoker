@@ -9,8 +9,7 @@ import (
 )
 
 // meetFrameAncestors lists parents allowed to embed this app:
-//   - 'self' so the same-origin iframe test page (/meet-iframe-test) can host the app
-//     for layout/UX verification without depending on real Meet.
+//   - 'self' so a same-origin iframe (e.g. for local layout verification) can host the app.
 //   - https://meet.google.com and https://*.google.com for the actual Meet side panel
 //     and main-stage embed.
 const meetFrameAncestors = "'self' https://meet.google.com https://*.google.com"

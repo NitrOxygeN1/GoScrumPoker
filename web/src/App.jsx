@@ -287,7 +287,7 @@ function SiteHeader({
           title="Home"
         >
           <img
-            src="/static/branding/logo-48.png"
+            src="/static/branding/logo-48T.png"
             width="28"
             height="28"
             alt=""
@@ -350,7 +350,7 @@ function SiteFooter() {
         <a href="/support">Support</a>
         <a href="/help">Help</a>
       </nav>
-      <p className="site-footer-copy">&copy; GoScrumPoker</p>
+      <p className="site-footer-copy">&copy; 2026 GoScrumPoker</p>
     </footer>
   );
 }
@@ -1261,7 +1261,25 @@ export default function App() {
                   <span className="you-line-name">{displayName.trim()}</span>
                 </span>
                 <div className="you-line-actions">
-                  {googleProfile.signedIn ? (
+                  {!googleProfile.signedIn && (
+                    <button
+                      type="button"
+                      className="icon-btn you-edit-ctl"
+                      title="Edit your name"
+                      onClick={() => {
+                        setEditNameDraft((displayName || "").trim());
+                        setEditingYouName(true);
+                      }}
+                      aria-label="Edit your name"
+                    >
+                      <IconEdit />
+                    </button>
+                  )}
+                  {/* Inside the Meet iframe the site header is hidden, so the
+                      sign-in / sign-out controls live here instead. Outside
+                      the iframe they belong to the page header only, to avoid
+                      duplicating the same action in two places. */}
+                  {inMeetIframe && googleProfile.signedIn && (
                     <button
                       type="button"
                       className="ghost you-signout-btn"
@@ -1271,42 +1289,20 @@ export default function App() {
                     >
                       Sign out
                     </button>
-                  ) : (
-                    <>
-                      <button
-                        type="button"
-                        className="icon-btn you-edit-ctl"
-                        title="Edit your name"
-                        onClick={() => {
-                          setEditNameDraft((displayName || "").trim());
-                          setEditingYouName(true);
-                        }}
-                        aria-label="Edit your name"
-                      >
-                        <IconEdit />
-                      </button>
-                      <button
-                        type="button"
-                        className={
-                          inMeetIframe
-                            ? "signin-btn signin-btn--icon you-signin-btn you-signin-btn--icon"
-                            : "signin-btn signin-btn--compact you-signin-btn"
-                        }
-                        onClick={handleSignIn}
-                        disabled={signingIn}
-                        title={
-                          signingIn ? "Waiting for Google…" : "Sign in with Google"
-                        }
-                        aria-label="Sign in with Google"
-                      >
-                        <GoogleGlyph />
-                        {!inMeetIframe && (
-                          <span>
-                            {signingIn ? "Waiting…" : "Sign in with Google"}
-                          </span>
-                        )}
-                      </button>
-                    </>
+                  )}
+                  {inMeetIframe && !googleProfile.signedIn && (
+                    <button
+                      type="button"
+                      className="signin-btn signin-btn--icon you-signin-btn you-signin-btn--icon"
+                      onClick={handleSignIn}
+                      disabled={signingIn}
+                      title={
+                        signingIn ? "Waiting for Google…" : "Sign in with Google"
+                      }
+                      aria-label="Sign in with Google"
+                    >
+                      <GoogleGlyph />
+                    </button>
                   )}
                 </div>
               </div>
