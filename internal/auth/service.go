@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -116,14 +117,13 @@ func (s *Service) handleGoogleLogin(w http.ResponseWriter, r *http.Request) {
 		SameSite: s.cookieSameSite,
 	})
 
-	opts := []oauth2.AuthCodeOption{oauth2.AccessTypeOffline}
-	// ?switch=1 forces Google's account chooser even when the user is already
-	// signed in to a single Google account; used by the in-app "Switch account"
-	// affordance. Without prompt=select_account, Google silently auto-selects
-	// the only signed-in account.
-	if isTruthyQueryParam(r.URL.Query().Get("switch")) ||
-		isTruthyQueryParam(r.URL.Query().Get("prompt_select")) {
-		opts = append(opts, oauth2.SetAuthURLParam("prompt", "select_account"))
+	// Always ask Google to show its account chooser. Without this the popup
+	// silently auto-selects whichever account the browser most recently used,
+	// which makes "log out and log back in" feel like a no-op for users with
+	// a single signed-in Google account.
+	opts := []oauth2.AuthCodeOption{
+		oauth2.AccessTypeOffline,
+		oauth2.SetAuthURLParam("prompt", "select_account"),
 	}
 
 	authURL := s.oauth.AuthCodeURL(state, opts...)
@@ -132,15 +132,6 @@ func (s *Service) handleGoogleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Redirect(w, r, authURL, http.StatusFound)
-}
-
-func isTruthyQueryParam(v string) bool {
-	switch v {
-	case "1", "true", "yes", "on":
-		return true
-	default:
-		return false
-	}
 }
 
 func (s *Service) handleGoogleCallback(w http.ResponseWriter, r *http.Request) {
@@ -227,7 +218,30 @@ func (s *Service) handleGoogleCallback(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, s.postLogin+"?login=error", http.StatusFound)
 		return
 	}
-	http.Redirect(w, r, s.postLogin+"?login=ok", http.StatusFound)
+	http.Redirect(w, r, s.postLogin+buildLoginOkQuery(prof), http.StatusFound)
+}
+
+// buildLoginOkQuery appends ?login=ok plus the freshly authenticated profile
+// fields so the OAuth popup can hand off the profile to its opener via
+// postMessage without depending on /api/me. The Meet iframe is a cross-site
+// embedding context where Chrome's third-party-cookie restrictions often
+// prevent the popup's session cookie from being read by /api/me even though
+// sign-in actually succeeded; putting the data on the URL bypasses that
+// entirely. The values are the user's own profile, delivered back to their
+// own browser over HTTPS, so URL-history exposure is acceptable.
+func buildLoginOkQuery(p Profile) string {
+	v := url.Values{}
+	v.Set("login", "ok")
+	if p.DisplayName != "" {
+		v.Set("name", p.DisplayName)
+	}
+	if p.Avatar != "" {
+		v.Set("avatar", p.Avatar)
+	}
+	if p.Email != "" {
+		v.Set("email", p.Email)
+	}
+	return "?" + v.Encode()
 }
 
 func (s *Service) handleLogout(w http.ResponseWriter, r *http.Request) {

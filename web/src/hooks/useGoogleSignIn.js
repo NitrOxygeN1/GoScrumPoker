@@ -145,11 +145,9 @@ export function useGoogleSignIn({ initialProfile } = {}) {
   }, [finishFailure, finishSuccess]);
 
   const signIn = useCallback(
-    (opts) => {
+    () => {
       if (signingIn) return;
-      const url = opts?.switchAccount
-        ? `${LOGIN_URL_BASE}?switch=1`
-        : LOGIN_URL_BASE;
+      const url = LOGIN_URL_BASE;
 
       setError("");
       setSigningIn(true);

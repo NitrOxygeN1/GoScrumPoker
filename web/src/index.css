@@ -116,10 +116,6 @@ button.app-title:focus-visible {
   border-radius: 4px;
 }
 
-h1.app-title.app-title--static {
-  cursor: default;
-}
-
 .popup-handoff {
   text-align: center;
   padding: 3rem 1.5rem;

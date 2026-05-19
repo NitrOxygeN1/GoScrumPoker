@@ -246,13 +246,7 @@ function SignInPanel({ onSignIn, signingIn, error, meetBindError, meetRoomId }) 
   );
 }
 
-function AccountMenu({
-  profile,
-  onSwitchAccount,
-  onSignOut,
-  signingIn,
-  compact = false,
-}) {
+function AccountMenu({ profile, onSignOut, signingIn, compact = false }) {
   const [busy, setBusy] = useState(false);
   const handleSignOut = async () => {
     setBusy(true);
@@ -275,15 +269,6 @@ function AccountMenu({
         </div>
       </div>
       <div className="account-menu-actions">
-        <button
-          type="button"
-          className="ghost account-menu-btn"
-          onClick={onSwitchAccount}
-          disabled={signingIn || busy}
-          title="Pick a different Google account"
-        >
-          Switch account
-        </button>
         <button
           type="button"
           className="ghost account-menu-btn"
@@ -504,11 +489,6 @@ export default function App() {
   const handleSignIn = useCallback(() => {
     userInitiatedSignInRef.current = true;
     signInWithGoogle();
-  }, [signInWithGoogle]);
-
-  const handleSwitchAccount = useCallback(() => {
-    userInitiatedSignInRef.current = true;
-    signInWithGoogle({ switchAccount: true });
   }, [signInWithGoogle]);
 
   const handleSignOut = useCallback(async () => {
@@ -958,13 +938,11 @@ export default function App() {
         </>
       ) : (
         <>
-          {!(phase === "lobby" && joinFromRoomLink && linkJoining) &&
-            (inMeetIframe ? (
-              // Inside the Meet add-on we always belong to the meeting-bound
-              // room — there is no useful "home" to navigate to, so render
-              // the title as static text.
-              <h1 className="app-title app-title--static">Scrum Poker</h1>
-            ) : (
+          {/* Hide the in-app title inside the Meet add-on: Meet's own side-
+              panel chrome already shows the add-on name above us, and there
+              is no "home" navigation to offer in that context. */}
+          {!inMeetIframe &&
+            !(phase === "lobby" && joinFromRoomLink && linkJoining) && (
               <button
                 type="button"
                 className={[
@@ -980,7 +958,7 @@ export default function App() {
               >
                 Scrum Poker
               </button>
-            ))}
+            )}
           {phase === "lobby" && joinFromRoomLink && linkJoining && (
         <p className="link-join-status" role="status" aria-live="polite">
           Joining room…
@@ -1085,7 +1063,6 @@ export default function App() {
         googleProfile.signedIn && (
           <AccountMenu
             profile={googleProfile}
-            onSwitchAccount={handleSwitchAccount}
             onSignOut={handleSignOut}
             signingIn={signingIn}
           />
@@ -1152,7 +1129,6 @@ export default function App() {
           {googleProfile.signedIn ? (
             <AccountMenu
               profile={googleProfile}
-              onSwitchAccount={handleSwitchAccount}
               onSignOut={handleSignOut}
               signingIn={signingIn}
               compact
