@@ -362,6 +362,43 @@ function IconCheck() {
   );
 }
 
+function SiteHeader({ onHomeClick }) {
+  return (
+    <header className="site-header">
+      <div className="site-header-inner">
+        <button
+          type="button"
+          className="site-logo"
+          onClick={onHomeClick}
+          title="Home"
+        >
+          <img
+            src="/static/branding/logo-48.png"
+            width="28"
+            height="28"
+            alt=""
+          />
+          GoScrumPoker
+        </button>
+        <nav className="site-nav" aria-label="Site">
+          <a href="/privacy">Privacy</a>
+          <a href="/terms">Terms</a>
+          <a href="/support">Support</a>
+          <a href="/help">Help</a>
+        </nav>
+      </div>
+    </header>
+  );
+}
+
+function SiteFooter() {
+  return (
+    <footer className="site-footer">
+      <p>&copy; GoScrumPoker · <a href="/">App</a></p>
+    </footer>
+  );
+}
+
 export default function App() {
   const [phase, setPhase] = useState("lobby");
   const [displayName, setDisplayName] = useState(() => readDisplayName());
@@ -949,11 +986,13 @@ export default function App() {
           {toast.message}
         </div>
       ) : null}
+      {/* Site chrome is intentionally hidden inside the Meet add-on iframe:
+          Meet's own side-panel chrome already wraps us, and there's no
+          home/legal-page navigation to offer in that context. */}
+      {!inMeetIframe && <SiteHeader onHomeClick={goHome} />}
+      <main className="site-main">
       {notFound ? (
         <>
-          <button type="button" className="app-title" onClick={goHome} title="Home">
-            Scrum Poker
-          </button>
           <div className="panel not-found" role="status" aria-live="polite">
             <h2 className="not-found-title">Not found (404)</h2>
             <p className="muted" style={{ marginTop: "0.5rem" }}>
@@ -970,27 +1009,6 @@ export default function App() {
         </>
       ) : (
         <>
-          {/* Hide the in-app title inside the Meet add-on: Meet's own side-
-              panel chrome already shows the add-on name above us, and there
-              is no "home" navigation to offer in that context. */}
-          {!inMeetIframe &&
-            !(phase === "lobby" && joinFromRoomLink && linkJoining) && (
-              <button
-                type="button"
-                className={[
-                  "app-title",
-                  phase === "lobby" && joinFromRoomLink && !linkJoining
-                    ? "app-title--join-link"
-                    : null,
-                ]
-                  .filter(Boolean)
-                  .join(" ")}
-                onClick={goHome}
-                title="Home"
-              >
-                Scrum Poker
-              </button>
-            )}
           {phase === "lobby" && joinFromRoomLink && linkJoining && (
         <p className="link-join-status" role="status" aria-live="polite">
           Joining room…
@@ -1004,20 +1022,6 @@ export default function App() {
 
       {showLinkNameForm && (
         <div className="panel join-link-panel">
-          <div className="join-link-lead-section">
-            {!inMeetIframe && (
-              <button
-                type="button"
-                className="icon-btn join-link-close join-link-close--corner"
-                onClick={goToMainLobby}
-                title="Return to home page (Esc)"
-                aria-label="Return to home page"
-              >
-                <IconClose />
-              </button>
-            )}
-            <p className="join-link-lead">Enter your name to join this room.</p>
-          </div>
           {!googleProfile.signedIn && (
             <div className="join-link-signin">
               <button
@@ -1052,7 +1056,9 @@ export default function App() {
               joinRoom();
             }}
           >
-            <label htmlFor="name-join-link">Your name</label>
+            <label htmlFor="name-join-link" className="join-link-name-label">
+              Enter your name to join this room:
+            </label>
             <input
               id="name-join-link"
               name="displayName"
@@ -1388,6 +1394,8 @@ export default function App() {
       )}
         </>
       )}
+      </main>
+      {!inMeetIframe && <SiteFooter />}
     </>
   );
 }

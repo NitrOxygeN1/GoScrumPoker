@@ -25,20 +25,28 @@ body {
 }
 
 #root {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.site-main {
+  width: 100%;
   max-width: 720px;
   margin: 0 auto;
   padding: 1.5rem 1rem 3rem;
-  width: 100%;
+  flex: 1 0 auto;
 }
 
-/* Google Meet side panel / narrow iframe */
-html.embedded #root {
+/* Site chrome (header + footer) is hidden in the Meet iframe via React, but
+   tighten the main padding too so panels can use the full side panel width. */
+html.embedded .site-main {
   max-width: none;
   padding: 0.75rem 0.65rem 1.5rem;
 }
 
-html.embedded h1,
-html.embedded button.app-title {
+html.embedded h1 {
   font-size: 1.1rem;
 }
 
@@ -65,12 +73,11 @@ html.embedded .actions-recommend {
 }
 
 @media (max-width: 480px) {
-  #root {
+  .site-main {
     padding: 0.85rem 0.65rem 1.75rem;
   }
 
-  h1,
-  button.app-title {
+  h1 {
     font-size: 1.15rem;
   }
 
@@ -90,30 +97,93 @@ h1 {
   letter-spacing: -0.02em;
 }
 
-button.app-title {
-  display: block;
+.site-header {
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  padding: 1rem 1.25rem;
+  flex-shrink: 0;
+}
+
+.site-header-inner {
+  max-width: 48rem;
+  margin: 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+button.site-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
   font: inherit;
-  font-size: 1.35rem;
+  font-size: 1.1rem;
   font-weight: 600;
-  margin: 0 0 0.25rem;
-  letter-spacing: -0.02em;
-  color: inherit;
+  color: var(--text);
   background: none;
   border: none;
   padding: 0;
   cursor: pointer;
-  text-align: left;
-  line-height: inherit;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
 }
 
-button.app-title--join-link {
-  margin: 0 0 0.35rem;
+.site-logo img {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 6px;
+  flex-shrink: 0;
 }
 
-button.app-title:focus-visible {
+button.site-logo:hover {
+  color: var(--accent);
+}
+
+button.site-logo:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
   border-radius: 4px;
+}
+
+.site-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
+  font-size: 0.875rem;
+}
+
+.site-nav a {
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.site-nav a:hover,
+.site-nav a[aria-current="page"] {
+  color: var(--text);
+}
+
+.site-footer {
+  border-top: 1px solid var(--border);
+  padding: 1.25rem;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.site-footer p {
+  margin: 0;
+}
+
+.site-footer a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.site-footer a:hover {
+  text-decoration: underline;
 }
 
 .popup-handoff {
@@ -202,7 +272,17 @@ button.app-title:focus-visible {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  margin: 0 0 0.85rem;
+  margin: 0 0 0.4rem;
+}
+
+.join-link-name-label {
+  display: block;
+  font-size: 0.9rem;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--muted);
+  margin-bottom: 0.65rem;
+  line-height: 1.4;
 }
 
 .join-link-signin-hint {
