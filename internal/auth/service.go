@@ -115,12 +115,32 @@ func (s *Service) handleGoogleLogin(w http.ResponseWriter, r *http.Request) {
 		Secure:   s.secure,
 		SameSite: s.cookieSameSite,
 	})
-	authURL := s.oauth.AuthCodeURL(state, oauth2.AccessTypeOffline)
+
+	opts := []oauth2.AuthCodeOption{oauth2.AccessTypeOffline}
+	// ?switch=1 forces Google's account chooser even when the user is already
+	// signed in to a single Google account; used by the in-app "Switch account"
+	// affordance. Without prompt=select_account, Google silently auto-selects
+	// the only signed-in account.
+	if isTruthyQueryParam(r.URL.Query().Get("switch")) ||
+		isTruthyQueryParam(r.URL.Query().Get("prompt_select")) {
+		opts = append(opts, oauth2.SetAuthURLParam("prompt", "select_account"))
+	}
+
+	authURL := s.oauth.AuthCodeURL(state, opts...)
 	if isEmbeddedRequest(r) {
 		writeTopLevelRedirect(w, authURL)
 		return
 	}
 	http.Redirect(w, r, authURL, http.StatusFound)
+}
+
+func isTruthyQueryParam(v string) bool {
+	switch v {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *Service) handleGoogleCallback(w http.ResponseWriter, r *http.Request) {

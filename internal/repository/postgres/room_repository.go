@@ -56,6 +56,30 @@ func (r *PostgresRoomRepository) VerifyMeetSchema(ctx context.Context) error {
 	if !ok {
 		return errors.New("room_participants.avatar_url is missing — run migration 000002_meet_and_avatar (RUN_MIGRATIONS_ON_STARTUP=true) before joining a Meet room")
 	}
+
+	// Verify the UNIQUE index on rooms.meet_meeting_id is non-partial. A
+	// partial index (the original 000002 shape) silently breaks ON CONFLICT
+	// inference at runtime with SQLSTATE 42P10. Migration 000003 replaces it.
+	var hasUsableIndex bool
+	if err := r.pool.QueryRow(ctx,
+		`SELECT EXISTS (
+			SELECT 1
+			FROM pg_index i
+			JOIN pg_class c ON c.oid = i.indexrelid
+			JOIN pg_class t ON t.oid = i.indrelid
+			JOIN pg_attribute a
+			  ON a.attrelid = t.oid AND a.attnum = i.indkey[0]
+			WHERE t.relname = 'rooms'
+			  AND a.attname = 'meet_meeting_id'
+			  AND i.indisunique = true
+			  AND i.indpred IS NULL
+		)`,
+	).Scan(&hasUsableIndex); err != nil {
+		return fmt.Errorf("verify meet unique index: %w", err)
+	}
+	if !hasUsableIndex {
+		return errors.New("rooms.meet_meeting_id has no non-partial UNIQUE index — apply migration 000003_meet_meeting_id_full_unique (INSERT ... ON CONFLICT cannot infer from a partial index)")
+	}
 	return nil
 }
 

@@ -111,17 +111,19 @@ export function useRoomSocket({
     [send]
   );
 
-  // Push avatar updates that arrive after the initial join (e.g. /api/me
-  // returns a profile picture moments after the WebSocket opened).
+  // Push identity updates that arrive after the initial join (e.g. /api/me
+  // returns a profile picture moments after the WebSocket opened, or the user
+  // switches to a different Google account mid-room). `send` no-ops when the
+  // socket isn't open yet, so the very first render is harmless.
   useEffect(() => {
     if (!enabled || !roomId) return;
-    const n = (nameForOpenRef.current || "").trim();
+    const n = (displayName || "").trim();
     if (!n) return;
     send({
       type: "join",
-      payload: buildJoinPayload(userIdRef.current, n, avatarForOpenRef.current),
+      payload: buildJoinPayload(userIdRef.current, n, avatar || ""),
     });
-  }, [avatar, enabled, roomId, send]);
+  }, [displayName, avatar, enabled, roomId, send]);
 
   return {
     userId: userIdRef.current,

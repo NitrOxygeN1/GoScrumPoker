@@ -246,6 +246,88 @@ function SignInPanel({ onSignIn, signingIn, error, meetBindError, meetRoomId }) 
   );
 }
 
+function AccountMenu({
+  profile,
+  onSwitchAccount,
+  onSignOut,
+  signingIn,
+  compact = false,
+}) {
+  const [busy, setBusy] = useState(false);
+  const handleSignOut = async () => {
+    setBusy(true);
+    try {
+      await onSignOut();
+    } finally {
+      setBusy(false);
+    }
+  };
+  const name = (profile.displayName || "").trim() || profile.email || "Account";
+  return (
+    <div className={`panel account-menu${compact ? " account-menu--compact" : ""}`}>
+      <div className="account-menu-row">
+        <AccountAvatar name={name} src={profile.avatar} />
+        <div className="account-menu-identity">
+          <div className="account-menu-name">{name}</div>
+          {profile.email && profile.email !== name ? (
+            <div className="account-menu-email muted">{profile.email}</div>
+          ) : null}
+        </div>
+      </div>
+      <div className="account-menu-actions">
+        <button
+          type="button"
+          className="ghost account-menu-btn"
+          onClick={onSwitchAccount}
+          disabled={signingIn || busy}
+          title="Pick a different Google account"
+        >
+          Switch account
+        </button>
+        <button
+          type="button"
+          className="ghost account-menu-btn"
+          onClick={handleSignOut}
+          disabled={signingIn || busy}
+          title="Sign out of your Google account"
+        >
+          {busy ? "Signing out…" : "Sign out"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function AccountAvatar({ name, src }) {
+  return <Avatar name={name} src={src} size={36} />;
+}
+
+function InRoomSignInHint({ onSignIn, signingIn, error }) {
+  return (
+    <div className="panel signin-hint">
+      <div className="signin-hint-row">
+        <span className="muted">
+          Sign in with Google to show your profile picture to others.
+        </span>
+        <button
+          type="button"
+          className="signin-btn signin-btn--compact"
+          onClick={onSignIn}
+          disabled={signingIn}
+        >
+          <GoogleGlyph />
+          <span>{signingIn ? "Waiting…" : "Sign in"}</span>
+        </button>
+      </div>
+      {error ? (
+        <p className="signin-error" role="alert">
+          {error}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function initialsFromName(name) {
   const trimmed = String(name || "").trim();
   if (!trimmed) return "?";
@@ -365,10 +447,17 @@ export default function App() {
   const {
     profile: googleProfile,
     signIn: signInWithGoogle,
+    signOut: signOutFromGoogle,
     signingIn,
     error: signInError,
     setProfile: setGoogleProfile,
   } = useGoogleSignIn();
+
+  // Track whether the next signed-in profile transition was triggered by the
+  // user clicking a sign-in button (true) vs. the silent /api/me bootstrap
+  // (false). User-initiated transitions override local name/avatar; silent
+  // ones only fill defaults so a manually-typed name is never clobbered.
+  const userInitiatedSignInRef = useRef(false);
 
   // Initial /api/me load. The sign-in hook's polling takes over after the
   // user clicks "Sign in with Google"; before that, we just need to know
@@ -385,21 +474,46 @@ export default function App() {
     };
   }, [setGoogleProfile]);
 
-  // Apply Google name + avatar whenever the profile flips to signed-in,
-  // whether that comes from the initial /api/me load or from the popup
-  // sign-in flow. Never overwrite a non-empty stored display name.
+  // Apply Google name + avatar whenever the profile changes.
   useEffect(() => {
     if (!googleProfile?.signedIn) return;
+    const userInitiated = userInitiatedSignInRef.current;
+    userInitiatedSignInRef.current = false;
+
     if (googleProfile.avatar) {
-      setUserAvatar((prev) => prev || googleProfile.avatar);
+      if (userInitiated) {
+        setUserAvatar(googleProfile.avatar);
+      } else {
+        setUserAvatar((prev) => prev || googleProfile.avatar);
+      }
     }
     if (googleProfile.displayName) {
       setDisplayName((prev) => {
+        if (userInitiated) return googleProfile.displayName;
         const existing = (prev || "").trim();
         return existing ? prev : googleProfile.displayName;
       });
+      if (userInitiated) saveDisplayName(googleProfile.displayName);
     }
   }, [googleProfile]);
+
+  const handleSignIn = useCallback(() => {
+    userInitiatedSignInRef.current = true;
+    signInWithGoogle();
+  }, [signInWithGoogle]);
+
+  const handleSwitchAccount = useCallback(() => {
+    userInitiatedSignInRef.current = true;
+    signInWithGoogle({ switchAccount: true });
+  }, [signInWithGoogle]);
+
+  const handleSignOut = useCallback(async () => {
+    await signOutFromGoogle();
+    // Avatar comes from Google; clear it so the room reflects the sign-out.
+    // Display name is intentionally preserved — a typed/stored name belongs
+    // to the user, not their Google account.
+    setUserAvatar("");
+  }, [signOutFromGoogle]);
 
   // Step 1: resolve the Scrum Poker room that backs this Meet call. Runs once
   // per mount; idempotent server-side, so a refresh inside the same call
@@ -947,11 +1061,23 @@ export default function App() {
         !meetJoining &&
         !googleProfile.signedIn && (
           <SignInPanel
-            onSignIn={signInWithGoogle}
+            onSignIn={handleSignIn}
             signingIn={signingIn}
             error={signInError}
             meetBindError={meetBindError}
             meetRoomId={meetRoomId}
+          />
+        )}
+
+      {phase === "lobby" &&
+        !joinFromRoomLink &&
+        !meetJoining &&
+        googleProfile.signedIn && (
+          <AccountMenu
+            profile={googleProfile}
+            onSwitchAccount={handleSwitchAccount}
+            onSignOut={handleSignOut}
+            signingIn={signingIn}
           />
         )}
 
@@ -1008,6 +1134,22 @@ export default function App() {
           <button type="button" className="back ghost" onClick={leaveRoom}>
             ← Leave room
           </button>
+
+          {googleProfile.signedIn ? (
+            <AccountMenu
+              profile={googleProfile}
+              onSwitchAccount={handleSwitchAccount}
+              onSignOut={handleSignOut}
+              signingIn={signingIn}
+              compact
+            />
+          ) : (
+            <InRoomSignInHint
+              onSignIn={handleSignIn}
+              signingIn={signingIn}
+              error={signInError}
+            />
+          )}
 
           <div className="panel">
             <div className="room-id-row">

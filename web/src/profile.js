@@ -51,6 +51,26 @@ export function refetchProfile() {
   return cached;
 }
 
+/**
+ * Clears the session cookie via POST /logout and resets the memoized profile.
+ * Resolves to `{ signedIn: false }` so callers can use the return value
+ * directly to update state.
+ */
+export async function signOut() {
+  try {
+    await fetch("/logout", {
+      method: "POST",
+      credentials: "include",
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+    });
+  } catch {
+    /* network errors here are non-fatal: we still want to drop local state */
+  }
+  cached = Promise.resolve({ signedIn: false });
+  return { signedIn: false };
+}
+
 /** Test/reset hook; not used in production code paths. */
 export function _resetProfileCacheForTests() {
   cached = null;

@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { refetchProfile } from "../profile.js";
+import { refetchProfile, signOut as signOutProfile } from "../profile.js";
 
 const POLL_INTERVAL_MS = 1500;
 const SIGN_IN_TIMEOUT_MS = 90_000;
 const POPUP_FEATURES = "popup,width=480,height=640,noopener=no";
-const LOGIN_URL = "/auth/google/login";
+const LOGIN_URL_BASE = "/auth/google/login";
 
 /**
  * Drives the "Sign in with Google" flow from inside the Meet add-on iframe.
@@ -110,44 +110,67 @@ export function useGoogleSignIn({ initialProfile } = {}) {
     tick();
   }, [finishFailure, finishSuccess]);
 
-  const signIn = useCallback(() => {
-    if (signingIn) return;
-    setError("");
-    setSigningIn(true);
+  const signIn = useCallback(
+    (opts) => {
+      if (signingIn) return;
+      const url = opts?.switchAccount
+        ? `${LOGIN_URL_BASE}?switch=1`
+        : LOGIN_URL_BASE;
 
-    let popup = null;
-    try {
-      popup = window.open(LOGIN_URL, "gsp-google-signin", POPUP_FEATURES);
-    } catch {
-      popup = null;
-    }
+      setError("");
+      setSigningIn(true);
 
-    if (!popup || popup.closed || typeof popup.closed === "undefined") {
-      // Popup blocked: fall back to a top-level navigation. The server's
-      // writeTopLevelRedirect on /auth/google/login handles the case where
-      // the request was made from inside an iframe.
+      let popup = null;
       try {
-        if (window.top && window.top !== window.self) {
-          window.top.location.href = LOGIN_URL;
-        } else {
-          window.location.href = LOGIN_URL;
-        }
+        popup = window.open(url, "gsp-google-signin", POPUP_FEATURES);
       } catch {
-        window.location.href = LOGIN_URL;
+        popup = null;
       }
-      // We won't get a chance to poll — the page is navigating away — but
-      // record the attempt so the button shows a spinner until unload.
-      return;
-    }
 
-    popupRef.current = popup;
+      if (!popup || popup.closed || typeof popup.closed === "undefined") {
+        // Popup blocked: fall back to a top-level navigation. The server's
+        // writeTopLevelRedirect on /auth/google/login handles the case where
+        // the request was made from inside an iframe.
+        try {
+          if (window.top && window.top !== window.self) {
+            window.top.location.href = url;
+          } else {
+            window.location.href = url;
+          }
+        } catch {
+          window.location.href = url;
+        }
+        // We won't get a chance to poll — the page is navigating away — but
+        // record the attempt so the button shows a spinner until unload.
+        return;
+      }
+
+      popupRef.current = popup;
+      try {
+        popup.focus();
+      } catch {
+        /* cross-origin focus restrictions: ignore */
+      }
+      beginPolling();
+    },
+    [beginPolling, signingIn]
+  );
+
+  const signOut = useCallback(async () => {
+    stopPolling();
+    setError("");
     try {
-      popup.focus();
+      popupRef.current?.close();
     } catch {
-      /* cross-origin focus restrictions: ignore */
+      /* ignore */
     }
-    beginPolling();
-  }, [beginPolling, signingIn]);
+    popupRef.current = null;
+    setSigningIn(false);
+
+    const next = await signOutProfile();
+    setProfile(next);
+    return next;
+  }, [stopPolling]);
 
   const cancel = useCallback(() => {
     finishFailure("");
@@ -159,5 +182,5 @@ export function useGoogleSignIn({ initialProfile } = {}) {
     popupRef.current = null;
   }, [finishFailure]);
 
-  return { profile, signIn, cancel, signingIn, error, setProfile };
+  return { profile, signIn, signOut, cancel, signingIn, error, setProfile };
 }

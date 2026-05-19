@@ -437,6 +437,83 @@ button:disabled {
   color: var(--danger);
 }
 
+.signin-btn--compact {
+  width: auto;
+  padding: 0.4rem 0.7rem;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+.account-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.account-menu--compact {
+  padding: 0.7rem 0.85rem;
+}
+
+.account-menu-row {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-width: 0;
+}
+
+.account-menu-identity {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.account-menu-name {
+  font-weight: 600;
+  font-size: 0.95rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.account-menu-email {
+  font-size: 0.78rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.account-menu-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+button.account-menu-btn {
+  flex: 1 1 auto;
+  min-width: 7rem;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.85rem;
+}
+
+.signin-hint {
+  padding: 0.7rem 0.85rem;
+}
+
+.signin-hint-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.signin-hint-row .muted {
+  font-size: 0.85rem;
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
 .participants li:last-child {
   border-bottom: none;
 }
