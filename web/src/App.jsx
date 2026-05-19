@@ -381,10 +381,14 @@ export default function App() {
   const [phase, setPhase] = useState("lobby");
   const [displayName, setDisplayName] = useState(() => readDisplayName());
   const [userAvatar, setUserAvatar] = useState("");
+  // Whether this tab is rendering inside the Google Meet add-on side panel
+  // (or main stage). Snapshotted at mount; `window.top` and the cloud project
+  // meta tag don't change for the lifetime of the page.
+  const inMeetIframe = useMemo(() => probablyInMeet(), []);
   // Hide the lobby until Meet auto-join settles, so users in a Meet add-on
   // never see (and accidentally click) the standalone create/join form.
   const [meetJoining, setMeetJoining] = useState(
-    () => probablyInMeet() && !parsePathForLobby().fromRoomLink
+    () => inMeetIframe && !parsePathForLobby().fromRoomLink
   );
   const [roomIdInput, setRoomIdInput] = useState(
     () => parsePathForLobby().roomId
@@ -954,23 +958,29 @@ export default function App() {
         </>
       ) : (
         <>
-          {!(phase === "lobby" && joinFromRoomLink && linkJoining) && (
-            <button
-              type="button"
-              className={[
-                "app-title",
-                phase === "lobby" && joinFromRoomLink && !linkJoining
-                  ? "app-title--join-link"
-                  : null,
-              ]
-                .filter(Boolean)
-                .join(" ")}
-              onClick={goHome}
-              title="Home"
-            >
-              Scrum Poker
-            </button>
-          )}
+          {!(phase === "lobby" && joinFromRoomLink && linkJoining) &&
+            (inMeetIframe ? (
+              // Inside the Meet add-on we always belong to the meeting-bound
+              // room — there is no useful "home" to navigate to, so render
+              // the title as static text.
+              <h1 className="app-title app-title--static">Scrum Poker</h1>
+            ) : (
+              <button
+                type="button"
+                className={[
+                  "app-title",
+                  phase === "lobby" && joinFromRoomLink && !linkJoining
+                    ? "app-title--join-link"
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+                onClick={goHome}
+                title="Home"
+              >
+                Scrum Poker
+              </button>
+            ))}
           {phase === "lobby" && joinFromRoomLink && linkJoining && (
         <p className="link-join-status" role="status" aria-live="polite">
           Joining room…
@@ -1131,9 +1141,13 @@ export default function App() {
 
       {phase === "room" && (
         <>
-          <button type="button" className="back ghost" onClick={leaveRoom}>
-            ← Leave room
-          </button>
+          {/* Inside the Meet add-on, the room is bound to the meeting id —
+              leaving would just auto-rejoin, so the control is hidden. */}
+          {!inMeetIframe && (
+            <button type="button" className="back ghost" onClick={leaveRoom}>
+              ← Leave room
+            </button>
+          )}
 
           {googleProfile.signedIn ? (
             <AccountMenu

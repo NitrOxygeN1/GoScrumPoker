@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { refetchProfile, signOut as signOutProfile } from "../profile.js";
+import { SIGNIN_MESSAGE_TYPE } from "../signInPopup.js";
 
 const POLL_INTERVAL_MS = 1500;
 const SIGN_IN_TIMEOUT_MS = 90_000;
@@ -80,6 +81,39 @@ export function useGoogleSignIn({ initialProfile } = {}) {
     }
     popupRef.current = null;
   }, [stopPolling]);
+
+  // Receive the popup's "I'm done" handoff. Inside the Meet iframe the
+  // session cookie is third-party and may be blocked by Chrome's
+  // third-party-cookie phaseout, so we can't rely on polling /api/me from
+  // here. The popup is a top-level window on our origin, so it can read the
+  // profile first-party and ship it to us via postMessage.
+  useEffect(() => {
+    function onMessage(ev) {
+      if (ev.origin !== window.location.origin) return;
+      const data = ev.data;
+      if (!data || data.type !== SIGNIN_MESSAGE_TYPE) return;
+      if (data.result === "ok" && data.profile?.signedIn) {
+        finishSuccess(data.profile);
+      } else if (data.result === "error") {
+        finishFailure("Google sign-in failed. Please try again.");
+      } else if (data.result === "ok") {
+        // OAuth completed but the popup couldn't read /api/me. Fall back to
+        // a refetch from here; in many cases the session cookie still works
+        // for the parent even when the popup hit a transient hiccup.
+        (async () => {
+          try {
+            const next = await refetchProfile();
+            if (next?.signedIn) finishSuccess(next);
+            else finishFailure("Could not load your profile. Please try again.");
+          } catch {
+            finishFailure("Could not load your profile. Please try again.");
+          }
+        })();
+      }
+    }
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [finishSuccess, finishFailure]);
 
   const beginPolling = useCallback(() => {
     if (intervalRef.current) return;
