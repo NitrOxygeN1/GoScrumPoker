@@ -163,27 +163,72 @@ func (r *PostgresRoomRepository) Snapshot(ctx context.Context, id string) (domai
 }
 
 // Join implements repository.RoomRepository.
+//
+// The upsert and the ghost-eviction run in a single transaction so the room
+// never momentarily contains both the stale and the fresh participant row.
+// Eviction targets are: any other participant in the same room whose
+// display_name (trim+lower) matches the incoming user. This collapses the
+// duplicate left behind when a service restart kills the previous WebSocket
+// without running Leave and the returning user reconnects with a new
+// anonymous user_id (sessionStorage cleared, mobile background eviction,
+// etc.). Match is intentionally name-based — there is no other stable
+// identity available for anonymous joiners.
 func (r *PostgresRoomRepository) Join(ctx context.Context, roomID string, user domain.User) error {
 	rid, err := parseRoomID(roomID)
 	if err != nil {
 		return fmt.Errorf("invalid room id: %w", err)
 	}
+
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin join tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
 	var one int
-	if err := r.pool.QueryRow(ctx, `SELECT 1 FROM rooms WHERE id = $1`, rid).Scan(&one); err != nil {
+	if err := tx.QueryRow(ctx, `SELECT 1 FROM rooms WHERE id = $1`, rid).Scan(&one); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return repository.ErrRoomNotFound
 		}
 		return fmt.Errorf("room lookup: %w", err)
 	}
-	_, err = r.pool.Exec(ctx,
+
+	if _, err := tx.Exec(ctx,
 		`INSERT INTO room_participants (room_id, user_id, display_name, avatar_url) VALUES ($1, $2, $3, $4)
 		 ON CONFLICT (room_id, user_id) DO UPDATE SET
 		     display_name = EXCLUDED.display_name,
 		     avatar_url   = EXCLUDED.avatar_url`,
 		rid, user.ID, user.Name, user.Avatar,
-	)
-	if err != nil {
+	); err != nil {
 		return fmt.Errorf("join participant: %w", err)
+	}
+
+	if _, err := tx.Exec(ctx,
+		`DELETE FROM votes
+		 WHERE room_id = $1
+		   AND user_id <> $2
+		   AND user_id IN (
+		       SELECT user_id FROM room_participants
+		       WHERE room_id = $1
+		         AND user_id <> $2
+		         AND lower(btrim(display_name)) = lower(btrim($3))
+		   )`,
+		rid, user.ID, user.Name,
+	); err != nil {
+		return fmt.Errorf("evict duplicate votes: %w", err)
+	}
+	if _, err := tx.Exec(ctx,
+		`DELETE FROM room_participants
+		 WHERE room_id = $1
+		   AND user_id <> $2
+		   AND lower(btrim(display_name)) = lower(btrim($3))`,
+		rid, user.ID, user.Name,
+	); err != nil {
+		return fmt.Errorf("evict duplicate participants: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit join: %w", err)
 	}
 	return nil
 }

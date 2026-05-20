@@ -89,6 +89,12 @@ func (m *Memory) Snapshot(ctx context.Context, id string) (domain.RoomState, boo
 }
 
 // Join implements RoomRepository.
+//
+// Also evicts "ghost" duplicates — other participants in the same room whose
+// display name matches (case/whitespace-insensitive) — together with their
+// votes. Matches the Postgres / Redis behaviour so an in-memory deployment
+// behaves the same as production after a service restart that left stale
+// rows behind.
 func (m *Memory) Join(ctx context.Context, roomID string, user domain.User) error {
 	_ = ctx
 	m.mu.Lock()
@@ -98,6 +104,15 @@ func (m *Memory) Join(ctx context.Context, roomID string, user domain.User) erro
 		return ErrRoomNotFound
 	}
 	r.Users[user.ID] = user
+	for id, u := range r.Users {
+		if id == user.ID {
+			continue
+		}
+		if domain.SameDisplayName(u.Name, user.Name) {
+			delete(r.Users, id)
+			delete(r.Votes, id)
+		}
+	}
 	return nil
 }
 

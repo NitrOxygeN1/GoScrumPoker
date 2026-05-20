@@ -2,12 +2,26 @@ import { useCallback, useEffect, useRef } from "react";
 
 const USER_KEY = "scrum_poker_user_id";
 
+// Anonymous user_id is persisted in localStorage so it survives tab closures
+// and server restarts. Earlier builds kept it in sessionStorage, which is
+// wiped when the tab closes — that meant a Render idle cold-shutdown while
+// the user closed their tab would re-join them as a brand-new participant
+// and leave their previous row behind as a duplicate ghost. We migrate any
+// legacy sessionStorage value once so existing rooms don't fragment.
 function getOrCreateUserId() {
   try {
-    let id = sessionStorage.getItem(USER_KEY);
+    let id = localStorage.getItem(USER_KEY);
+    if (!id) {
+      const legacy = sessionStorage.getItem(USER_KEY);
+      if (legacy) {
+        id = legacy;
+        localStorage.setItem(USER_KEY, id);
+        sessionStorage.removeItem(USER_KEY);
+      }
+    }
     if (!id) {
       id = crypto.randomUUID();
-      sessionStorage.setItem(USER_KEY, id);
+      localStorage.setItem(USER_KEY, id);
     }
     return id;
   } catch {

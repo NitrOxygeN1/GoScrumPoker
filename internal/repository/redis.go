@@ -231,9 +231,24 @@ func (s *Redis) withRoom(ctx context.Context, roomID string, fn func(*roomDoc) e
 }
 
 // Join implements RoomRepository.
+//
+// Also evicts "ghost" duplicates — other participants in the same room whose
+// display name matches (case/whitespace-insensitive) — together with their
+// votes. These are leftovers from prior sessions where the server died
+// without running Leave (e.g. Render's idle cold-shutdown) and the returning
+// user reconnected with a new anonymous user_id.
 func (s *Redis) Join(ctx context.Context, roomID string, user domain.User) error {
 	return s.withRoom(ctx, roomID, func(doc *roomDoc) error {
 		doc.Users[user.ID] = user
+		for id, u := range doc.Users {
+			if id == user.ID {
+				continue
+			}
+			if domain.SameDisplayName(u.Name, user.Name) {
+				delete(doc.Users, id)
+				delete(doc.Votes, id)
+			}
+		}
 		return nil
 	})
 }

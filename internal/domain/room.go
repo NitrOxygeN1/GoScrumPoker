@@ -1,6 +1,26 @@
 package domain
 
-import "sort"
+import (
+	"sort"
+	"strings"
+)
+
+// SameDisplayName reports whether two display names should be treated as the
+// same participant for de-duplication. Comparison is case-insensitive and
+// ignores leading/trailing whitespace. An empty (trimmed) name never matches,
+// because clients must supply a real name on join.
+//
+// Used to collapse "ghost" participants left behind when a service restart
+// (e.g. Render's idle cold-shutdown) prevents the normal Leave path from
+// running and the returning user reconnects with a fresh anonymous user_id.
+func SameDisplayName(a, b string) bool {
+	at := strings.TrimSpace(a)
+	bt := strings.TrimSpace(b)
+	if at == "" || bt == "" {
+		return false
+	}
+	return strings.EqualFold(at, bt)
+}
 
 // User is a participant in a planning poker room.
 // Avatar is an optional image URL (e.g. Google profile picture) used for UI only;
