@@ -388,6 +388,19 @@ export default function App() {
       parsePathForLobby().fromRoomLink && readDisplayName().trim() !== ""
     );
   });
+  // True while /api/me is still resolving on first load. We only suspend UI
+  // for this when there's no saved name AND we're on a room-bound entry
+  // (a /<uuid> link or the Meet add-on) — otherwise a returning signed-in
+  // user briefly sees the "Enter your name to join this room" form before
+  // the silent sign-in lands and the auto-join kicks in. Standalone home
+  // visitors don't need to wait for this; they have a manual lobby anyway.
+  const [profileBootstrapping, setProfileBootstrapping] = useState(() => {
+    if (typeof window === "undefined") return false;
+    const onLinkPath = parsePathForLobby().fromRoomLink;
+    const inMeet = probablyInMeet();
+    if (!onLinkPath && !inMeet) return false;
+    return readDisplayName().trim() === "";
+  });
   /** 404: invalid app URL, or room link with no such room. */
   const [notFound, setNotFound] = useState(() => getPathNotFoundKind());
   const toastTimerRef = useRef(0);
@@ -447,13 +460,19 @@ export default function App() {
 
   // Initial /api/me load. The sign-in hook's polling takes over after the
   // user clicks "Sign in with Google"; before that, we just need to know
-  // whether there's already an active session cookie.
+  // whether there's already an active session cookie. Always flip
+  // profileBootstrapping off when this resolves (even on auth failure /
+  // network error) so the UI doesn't get stuck on the "Joining…" indicator.
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const prof = await fetchCurrentProfile();
-      if (cancelled) return;
-      if (prof?.signedIn) setGoogleProfile(prof);
+      try {
+        const prof = await fetchCurrentProfile();
+        if (cancelled) return;
+        if (prof?.signedIn) setGoogleProfile(prof);
+      } finally {
+        if (!cancelled) setProfileBootstrapping(false);
+      }
     })();
     return () => {
       cancelled = true;
@@ -734,17 +753,28 @@ export default function App() {
 
   useEffect(() => {
     if (phase !== "lobby" || !joinFromRoomLink) return;
+    if (profileBootstrapping) return;
     const id = roomIdInput.trim();
     if (!id) return;
     if (autoLinkJoinTried.current) return;
     const hasName = (displayName || "").trim() !== "";
     if (!hasName) return;
-    // Two ways to auto-join: a name was already known at mount (saved or
-    // existing Google session), or the user just completed Google sign-in
-    // from the link-join form (pending flag + actually signed in now).
+    // Three ways to auto-join, in priority order:
+    //   1. A name was already saved at mount (returning visitor on this
+    //      device — canAutoJoinFromLinkRef).
+    //   2. The user just clicked "Sign in with Google" from the link-join
+    //      welcome panel (linkJoinSignInPendingRef + signed-in now).
+    //   3. The user is silently signed in (Google session cookie still
+    //      valid, /api/me handed us a profile without any explicit click).
+    //      A Google session is implicit consent — they identified themselves
+    //      with Google, so re-prompting for a name is just noise.
     const fromPendingSignIn =
       linkJoinSignInPendingRef.current && googleProfile.signedIn;
-    if (!canAutoJoinFromLinkRef.current && !fromPendingSignIn) {
+    if (
+      !canAutoJoinFromLinkRef.current &&
+      !fromPendingSignIn &&
+      !googleProfile.signedIn
+    ) {
       return;
     }
     linkJoinSignInPendingRef.current = false;
@@ -757,6 +787,7 @@ export default function App() {
     displayName,
     googleProfile.signedIn,
     joinByRoomId,
+    profileBootstrapping,
   ]);
 
   async function createRoom() {
@@ -897,17 +928,28 @@ export default function App() {
   // not signed in, no saved displayName). Without this branch we'd fall
   // through to the standalone "Create / Join by UUID" home panel, which is
   // wrong — we already know exactly which room they should join.
+  //
+  // Suppressed during profileBootstrapping so a signed-in returning visitor
+  // doesn't see the welcome form flash before the silent /api/me hands us
+  // their Google profile.
   const showMeetWelcomeForm =
     phase === "lobby" &&
     inMeetIframe &&
     !!meetRoomId &&
     !displayName.trim() &&
-    !meetJoining;
+    !meetJoining &&
+    !profileBootstrapping;
+  // The link-join welcome panel is for visitors with no identity. Hide it
+  // for users who are signed in with Google AND already have a name (their
+  // profile fully bootstrapped) — the auto-join effect handles them in the
+  // same tick.
   const showLinkNameForm =
     (phase === "lobby" &&
       joinFromRoomLink &&
       !linkJoining &&
-      !canAutoJoinFromLinkRef.current) ||
+      !profileBootstrapping &&
+      !canAutoJoinFromLinkRef.current &&
+      !(googleProfile.signedIn && displayName.trim())) ||
     showMeetWelcomeForm;
   const showLinkErrorPanel =
     phase === "lobby" &&
@@ -986,12 +1028,16 @@ export default function App() {
         </>
       ) : (
         <>
-          {phase === "lobby" && joinFromRoomLink && linkJoining && (
+          {phase === "lobby" &&
+        joinFromRoomLink &&
+        (linkJoining || profileBootstrapping) && (
         <p className="link-join-status" role="status" aria-live="polite">
           Joining room…
         </p>
       )}
-      {phase === "lobby" && !joinFromRoomLink && meetJoining && (
+      {phase === "lobby" &&
+        !joinFromRoomLink &&
+        (meetJoining || (inMeetIframe && profileBootstrapping)) && (
         <p className="link-join-status" role="status" aria-live="polite">
           Connecting to this meeting…
         </p>
@@ -1109,7 +1155,8 @@ export default function App() {
       {phase === "lobby" &&
         !joinFromRoomLink &&
         !meetJoining &&
-        !showMeetWelcomeForm && (
+        !showMeetWelcomeForm &&
+        !profileBootstrapping && (
         <div className="panel">
           {googleProfile.signedIn ? (
             <div className="lobby-identity" aria-label="Signed in as">
