@@ -892,11 +892,23 @@ export default function App() {
     vote(value);
   }
 
-  const showLinkNameForm =
+  // Meet add-on equivalent of the /<uuid> link welcome: the meeting binding
+  // already resolved a room id, but the user has no name yet (new visitor,
+  // not signed in, no saved displayName). Without this branch we'd fall
+  // through to the standalone "Create / Join by UUID" home panel, which is
+  // wrong — we already know exactly which room they should join.
+  const showMeetWelcomeForm =
     phase === "lobby" &&
-    joinFromRoomLink &&
-    !linkJoining &&
-    !canAutoJoinFromLinkRef.current;
+    inMeetIframe &&
+    !!meetRoomId &&
+    !displayName.trim() &&
+    !meetJoining;
+  const showLinkNameForm =
+    (phase === "lobby" &&
+      joinFromRoomLink &&
+      !linkJoining &&
+      !canAutoJoinFromLinkRef.current) ||
+    showMeetWelcomeForm;
   const showLinkErrorPanel =
     phase === "lobby" &&
     joinFromRoomLink &&
@@ -1094,7 +1106,10 @@ export default function App() {
           </div>
         )}
 
-      {phase === "lobby" && !joinFromRoomLink && !meetJoining && (
+      {phase === "lobby" &&
+        !joinFromRoomLink &&
+        !meetJoining &&
+        !showMeetWelcomeForm && (
         <div className="panel">
           {googleProfile.signedIn ? (
             <div className="lobby-identity" aria-label="Signed in as">
