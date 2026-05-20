@@ -10,10 +10,18 @@ import (
 	"github.com/rs/zerolog"
 )
 
+// Heartbeat sizing: we want a Meet participant who drops off the call (network
+// loss, device sleep, Meet keeping the iframe alive on its "you left the
+// meeting" screen) to disappear from other clients' participant lists in
+// roughly half a minute, not a full minute. pingPeriod is comfortably under a
+// third of pongWait, so two consecutive missed pings still time out before
+// the deadline — robust against a single dropped ping. Going much lower
+// risks false-positive evictions when a backgrounded mobile tab is briefly
+// throttled by the browser.
 const (
 	writeWait      = 10 * time.Second
-	pongWait       = 60 * time.Second
-	pingPeriod     = (pongWait * 9) / 10
+	pongWait       = 30 * time.Second
+	pingPeriod     = 10 * time.Second
 	maxMessageSize = 8192
 	sendBuffer     = 256
 )

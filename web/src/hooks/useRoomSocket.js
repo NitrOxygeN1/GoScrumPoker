@@ -95,7 +95,36 @@ export function useRoomSocket({
       }
     };
 
+    // Close the socket explicitly when the page/iframe is being torn down.
+    // The React effect cleanup only fires on component unmount — it does NOT
+    // run when Google Meet destroys the side-panel iframe, when the tab
+    // closes, when the mobile OS evicts the page, or when the document
+    // enters bfcache. Without this, the server has to wait for the TCP FIN
+    // (or its 30s ping/pong timeout) before evicting the participant, and a
+    // dropped-off user keeps appearing in everyone else's list.
+    //
+    // `pagehide` is the modern, reliable signal for all of those transitions
+    // (including bfcache). `beforeunload` is a fallback for older browsers
+    // where pagehide doesn't fire inside iframes; both are idempotent
+    // because the WebSocket close is.
+    const closeForUnload = () => {
+      try {
+        if (
+          ws.readyState === WebSocket.OPEN ||
+          ws.readyState === WebSocket.CONNECTING
+        ) {
+          ws.close(1001, "page hidden");
+        }
+      } catch {
+        /* ignore */
+      }
+    };
+    window.addEventListener("pagehide", closeForUnload);
+    window.addEventListener("beforeunload", closeForUnload);
+
     return () => {
+      window.removeEventListener("pagehide", closeForUnload);
+      window.removeEventListener("beforeunload", closeForUnload);
       ws.close();
       if (wsRef.current === ws) wsRef.current = null;
     };
