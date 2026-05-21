@@ -1225,15 +1225,20 @@ export default function App() {
       {phase === "room" && (
         <>
           {/* Clipboard write is blocked inside the Meet add-on iframe (Meet
-              does not set allow="clipboard-write"), so copying the room id /
-              link can't be made to work from here. The meeting itself binds
-              the room, so participants don't need to share the link manually
-              anyway — hide the panel entirely. */}
-          {!inMeetIframe && (
-            <div className="panel">
-              <div className="room-id-row">
-                <div>
-                  <div className="muted">Room ID</div>
+              does not set allow="clipboard-write"), so the copy / share-link
+              actions are dropped in that context — and the room id renders
+              as plain text rather than a button so taps don't look broken.
+              The meeting itself binds the room, so participants don't need
+              to share the link manually anyway. */}
+          <div className="panel">
+            <div className="room-id-row">
+              <div>
+                <div className="muted">Room ID</div>
+                {inMeetIframe ? (
+                  <span className="room-id-text room-id-text--static">
+                    {activeRoomId}
+                  </span>
+                ) : (
                   <button
                     type="button"
                     className="room-id-text"
@@ -1243,7 +1248,9 @@ export default function App() {
                   >
                     {activeRoomId}
                   </button>
-                </div>
+                )}
+              </div>
+              {!inMeetIframe && (
                 <div className="room-id-actions">
                   <button
                     type="button"
@@ -1264,9 +1271,9 @@ export default function App() {
                     <IconShareLink />
                   </button>
                 </div>
-              </div>
+              )}
             </div>
-          )}
+          </div>
 
           <div className="panel you-panel">
             <div className="muted">You</div>

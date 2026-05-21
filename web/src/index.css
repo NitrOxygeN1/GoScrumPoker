@@ -751,6 +751,16 @@ button.room-id-text:focus-visible {
   border-radius: 4px;
 }
 
+.room-id-text--static {
+  display: inline;
+  max-width: 100%;
+  font-size: 0.9rem;
+  color: inherit;
+  word-break: break-all;
+  vertical-align: baseline;
+  user-select: text;
+}
+
 .room-id-row {
   display: flex;
   align-items: flex-start;
